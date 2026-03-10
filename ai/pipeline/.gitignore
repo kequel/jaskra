@@ -1,0 +1,15 @@
+# Środowisko wirtualne
+venv/
+.venv/
+
+# Dane i wyniki
+results/
+
+# Modele
+models/*.pt
+models/*.pth
+
+# Pliki systemowe i cache
+__pycache__/
+.DS_Store
+.ipynb_checkpoints/
