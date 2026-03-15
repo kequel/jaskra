@@ -1,0 +1,20 @@
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# Data and Results
+results/
+
+# Ignore all images and masks in the data folders
+data/images/*.png
+data/masks/*.png
+
+# Models
+models/*.pt
+models/*.pth
+
+# System files and Cache
+__pycache__/
+.DS_Store
+.ipynb_checkpoints/
