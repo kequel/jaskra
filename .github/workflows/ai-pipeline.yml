@@ -1,0 +1,60 @@
+name: AI pipeline checks
+
+on:
+  push:
+    paths:
+      - 'ai/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'ai/**'
+
+jobs:
+  # block merge if there are syntax errors
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install flake8
+        run: pip install flake8
+
+      - name: Flake8 - syntax and import errors (blocks merge)
+        run: |
+          flake8 ai/pipeline/pipeline.py \
+            --select=E9,F821 \
+            --format='::error file=%(path)s,line=%(row)d::%(text)s'
+
+      - name: Flake8 - style warning (does not block merge)
+        run: |
+          flake8 ai/pipeline/pipeline.py \
+            --max-line-length=120 \
+            --ignore=E9,F821 \
+            --format='::warning file=%(path)s,line=%(row)d::%(text)s'
+        continue-on-error: true
+
+  # Blocks merge if the logic in calculate_cdr or _preprocess is broken
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install torch numpy opencv-python-headless pytest
+
+      - name: Run unit tests
+        run: |
+          pytest ai/pipeline/tests/test_pipeline.py -v --tb=short
