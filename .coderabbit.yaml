@@ -6,6 +6,8 @@ reviews:
     enabled: true
     base_branches:
       - main
+  path_filters:
+    - "!.github/workflows/todo-scanner.yml"
 
   instructions: |
     Always format your review exactly like this, with no emoji anywhere:
@@ -39,11 +41,10 @@ reviews:
     Mateusz Dobry (unet), Agnieszka Pawłowska (yolo, hardware),
     Amila Amarasekara (yolo), Antoni Naczke (unet, hardware)
 
-    Rules for yoyur review:
+    Rules for your review:
     - No emoji anywhere in the review
     - Do not flag Polish language as an error (it is listed separately in POLISH LANGUAGE DETECTED)
     - Do not flag style issues already covered by SwiftLint or flake8
     - Focus on: logic errors, type mismatches between Swift and Python,
       missing error handling, hardcoded values, security issues in file uploads
     - Strictly follow the format above, with the same section titles and order
-    - ignore todo-scanner.yml file (it is just a helper)
