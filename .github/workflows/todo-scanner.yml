@@ -23,33 +23,50 @@ jobs:
           script: |
             const { execSync } = require('child_process');
 
-            const raw = execSync(
-              `grep -rn "#\\s*TODO:*\\s*" . \
-                --include="*.py" \
-                --include="*.swift" \
+            // 1. .github/workflows — only # TODO / # TODO: / #TODO / #TODO:
+            const rawWorkflows = execSync(
+              `grep -rn "#\\s*TODO:*\\s*" .github/workflows/ 2>/dev/null || true`,
+              { encoding: 'utf8' }
+            );
+
+            // 2. everything else except docs/, .git/, .md files
+            const rawCode = execSync(
+              `grep -rni "TODO" . \
                 --exclude-dir=".git" \
                 --exclude-dir=".github" \
                 --exclude-dir="docs" \
+                --exclude="*.md" \
+                --exclude="*.ipynb" \
                 2>/dev/null || true`,
               { encoding: 'utf8' }
             );
 
-            const lines = raw.trim().split('\n').filter(Boolean);
+            // 3. .md files — not searched at all (skip)
 
-            let body = '## REMAINING TODOs (from todo-scanner)\n\n';
-
-            if (lines.length === 0) {
-              body += 'None\n';
-            } else {
-              for (const line of lines) {
-                const match = line.match(/^\.\/(.+?):(\d+):\s*#\s*TODO:?\s*(.*)/i);
+            const parseLines = (raw, commentPrefix) => {
+              const results = [];
+              for (const line of raw.trim().split('\n').filter(Boolean)) {
+                let match;
+                if (commentPrefix) {
+                  match = line.match(/^\.\/(.+?):(\d+):\s*#\s*TODO:?\s*(.*)/i);
+                } else {
+                  match = line.match(/^\.\/(.+?):(\d+):\s*.*?TODO:?\s*(.*)/i);
+                }
                 if (match) {
                   const [, file, lineNum, text] = match;
                   const cleaned = text.trim() || '(no description)';
-                  body += `[line ${lineNum}] [${file}] - ${cleaned}\n`;
+                  results.push(`[line ${lineNum}] [${file}] - ${cleaned}`);
                 }
               }
-            }
+              return results;
+            };
+
+            const workflowTodos = parseLines(rawWorkflows, true);
+            const codeTodos = parseLines(rawCode, false);
+            const all = [...workflowTodos, ...codeTodos];
+
+            let body = '## REMAINING TODOs (from todo-scanner)\n\n';
+            body += all.length === 0 ? 'None\n' : all.join('\n') + '\n';
 
             const comments = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -58,7 +75,7 @@ jobs:
             });
 
             const existing = comments.data.find(c =>
-              c.user.login === 'github-actions[bot]' &&
+              c.user?.login === 'github-actions[bot]' &&
               c.body.startsWith('## REMAINING TODOs (from todo-scanner)')
             );
 

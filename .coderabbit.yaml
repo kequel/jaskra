@@ -1,6 +1,7 @@
 language: en
 
 reviews:
+  profile: assertive
   auto_review:
     enabled: true
     base_branches:
@@ -45,3 +46,4 @@ reviews:
     - Focus on: logic errors, type mismatches between Swift and Python,
       missing error handling, hardcoded values, security issues in file uploads
     - Strictly follow the format above, with the same section titles and order
+    - ignore todo-scanner.yml file (it is just a helper)
