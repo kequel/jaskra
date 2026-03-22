@@ -1,0 +1,64 @@
+name: Mobile UI checks
+
+on:
+  push:
+    paths:
+      - 'mobile/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'mobile/**'
+
+jobs:
+  # block merge if code do not compile
+  swift-syntax:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check syntax (swiftc -parse)
+        run: |
+          FAILED=0
+          while IFS= read -r file; do
+            if ! swiftc -parse "$file" 2>&1; then
+              echo "::error file=$file::error in $file"
+              FAILED=1
+            fi
+          done < <(find mobile/ -name "*.swift" -not -path "*/.swiftpm/*")
+          exit $FAILED
+
+  # style warnings
+  swift-lint:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: Run SwiftLint
+        run: |
+          swiftlint lint mobile/ \
+            --exclude mobile/.swiftpm \
+            --reporter github-actions-logging
+        continue-on-error: true
+
+  # all TODOs and FIXMEs as warnings
+  swift-todos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: List all TODOs and FIXMEs
+        run: |
+          grep -rn "TODO\|FIXME" mobile/ \
+            --include="*.swift" \
+            --exclude-dir=".swiftpm" \
+          | while IFS=: read -r file line content; do
+            echo "::warning file=$file,line=$line::$content"
+          done
+          exit 0
