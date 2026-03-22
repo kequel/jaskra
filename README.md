@@ -1,4 +1,4 @@
-# Glaucoma Detection – AI-Powered Fundus Image Analysis
+# Glaucoma AI-Powered Fundus Image Detection 
 ## Project Overview
 Glaucoma is one of the leading causes of irreversible vision loss worldwide. Early detection is critical, yet manual analysis of fundus photographs is time-consuming and requires specialized ophthalmological expertise.
 
@@ -32,19 +32,23 @@ This project automates that process using an AI pipeline (YOLO + UNet++) integra
 ## Technical Stack
 ### AI Pipeline
 - **YOLO** - detects the optic disc ROI in the fundus image
-- **UNet++** (EfficientNet-B4 encoder, Segmentation Models PyTorch) - segments optic disc and cup
-- **CDR (Cup-to-Disc Ratio)** - computed from segmentation masks; threshold > 0.65 flags glaucoma suspicion
+- **UNet++** - segments optic disc and cup
+- **CDR (Cup-to-Disc Ratio)** - computed from segmentation masks
 - **PyTorch** - training and inference
 - **Jupyter Notebook** - data exploration and prototyping
  
 ### Backend
 - **FastAPI** - REST API exposing `/analyze-glaucoma` endpoint
 - **Microsoft Azure** - cloud hosting
-- Accepts a fundus image (JPEG), returns: `has_glaucoma`, `confidence`, `cup_to_disc_ratio`, `image_base64` (annotated image)
+
+
+Accepts a fundus image (JPEG), returns: `has_glaucoma`, `confidence`, `cup_to_disc_ratio`, `image_base64` (annotated image)
  
 ### Mobile
 - **Swift Playgrounds** - iOS application (iPhone & iPad)
-- Sends fundus photo to backend, displays diagnosis with CDR scale and confidence score
+
+
+Sends fundus photo to backend, displays diagnosis with CDR scale and confidence score
  
 ### Hardware
 - Smartphone fundus camera attachment (in development)
