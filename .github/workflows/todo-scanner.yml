@@ -24,13 +24,11 @@ jobs:
             const { execSync } = require('child_process');
 
             const raw = execSync(
-              `grep -rni "TODO" . \
+              `grep -rn "#\\s*TODO:*\\s*" . \
                 --include="*.py" \
                 --include="*.swift" \
-                --include="*.yml" \
-                --include="*.yaml" \
-                --include="*.md" \
                 --exclude-dir=".git" \
+                --exclude-dir=".github" \
                 --exclude-dir="docs" \
                 2>/dev/null || true`,
               { encoding: 'utf8' }
@@ -44,7 +42,7 @@ jobs:
               body += 'None\n';
             } else {
               for (const line of lines) {
-                const match = line.match(/^\.\/(.+?):(\d+):\s*.*?TODO:?\s*(.*)/i);
+                const match = line.match(/^\.\/(.+?):(\d+):\s*#\s*TODO:?\s*(.*)/i);
                 if (match) {
                   const [, file, lineNum, text] = match;
                   const cleaned = text.trim() || '(no description)';
