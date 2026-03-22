@@ -1,9 +1,6 @@
 name: Backend CI
 
 on:
-  push:
-    paths:
-      - 'backend/**'
   pull_request:
     branches:
       - main
@@ -63,7 +60,8 @@ jobs:
         run: |
           cd backend
           uvicorn main:app --host 0.0.0.0 --port 8000 &
-          sleep 3
+          curl --retry 10 --retry-delay 60 --retry-connrefused http://localhost:8000/docs > /dev/null 2>&1
+          # trying for 10 minutes, 60 seconds apart, until the server is up
 
       - name: Test POST /analyze-glaucoma
         run: |

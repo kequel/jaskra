@@ -1,9 +1,6 @@
 name: Mobile UI checks
 
 on:
-  push:
-    paths:
-      - 'mobile/**'
   pull_request:
     branches:
       - main
