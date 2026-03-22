@@ -1,0 +1,66 @@
+name: Auto-label PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # labeler.yml is generated at runtime
+      - name: Write labeler config
+        run: |
+          mkdir -p .github
+          cat > .github/labeler-runtime.yml << 'EOF'
+          ai:
+            - changed-files:
+              - any-glob-to-any-file:
+                - 'ai/**'
+
+          backend:
+            - changed-files:
+              - any-glob-to-any-file:
+                - 'backend/**'
+
+          mobile:
+            - changed-files:
+              - any-glob-to-any-file:
+                - 'mobile/**'
+
+          hardware:
+            - changed-files:
+              - any-glob-to-any-file:
+                - 'hardware/**'
+
+          docs:
+            - changed-files:
+              - any-glob-to-any-file:
+                - 'docs/**'
+
+          ci:
+            - changed-files:
+              - any-glob-to-any-file:
+                - '.github/**'
+
+          dependencies:
+            - changed-files:
+              - any-glob-to-any-file:
+                - 'backend/requirements*.txt'
+                - 'mobile/Package.swift'
+                - 'mobile/Package.resolved'
+                - 'ai/requirements*.txt'
+          EOF
+
+      - name: Apply labels
+        uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler-runtime.yml
