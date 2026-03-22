@@ -2,12 +2,14 @@ language: en
 
 reviews:
   profile: assertive
+  changelog_summary: false
   auto_review:
     enabled: true
     base_branches:
       - main
   path_filters:
     - "!.github/workflows/todo-scanner.yml"
+    - "!docs/**"
 
   instructions: |
     Always format your review exactly like this, with no emoji anywhere:
