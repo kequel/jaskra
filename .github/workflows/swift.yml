@@ -4,8 +4,6 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - 'mobile/**'
 
 jobs:
   # block merge if code do not compile

@@ -4,8 +4,6 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - 'backend/**'
 
 jobs:
   # block merge if not existing modules are imported or syntax errors

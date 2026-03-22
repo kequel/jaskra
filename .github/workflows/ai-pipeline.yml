@@ -4,8 +4,6 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - 'ai/**'
 
 jobs:
   # block merge if there are syntax errors
