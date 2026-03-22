@@ -37,6 +37,7 @@ jobs:
                 --exclude-dir="docs" \
                 --exclude="*.md" \
                 --exclude="*.ipynb" \
+                --exclude="*.yaml" \
                 2>/dev/null || true`,
               { encoding: 'utf8' }
             );
