@@ -38,10 +38,8 @@ reviews:
     List any GitHub issues this PR relates to, or "None".
 
     SUGGESTED REVIEWERS:
-    Based on changed files, suggest which team members should review.
-    Team: Martyna Borkowska (backend, project lead, app workflow), Karolina Glaza (infrastructure, repository maintenance, user interface),
-    Mateusz Dobry (unet), Agnieszka Pawłowska (yolo, hardware),
-    Amila Amarasekara (yolo), Antoni Naczke (unet, hardware)
+    Based on changed files, suggest which team members should review - use CodeRabbit's suggested_reviewers feature to get the list of reviewers.
+    List 2-3 reviewers or "None".
 
     Rules for your review:
     - No emoji anywhere in the review
