@@ -1,14 +1,9 @@
 name: AI pipeline checks
 
 on:
-  push:
-    paths:
-      - 'ai/**'
   pull_request:
     branches:
       - main
-    paths:
-      - 'ai/**'
 
 jobs:
   # block merge if there are syntax errors
@@ -41,20 +36,21 @@ jobs:
         continue-on-error: true
 
   # Blocks merge if the logic in calculate_cdr or _preprocess is broken
-  unit-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  # TODO: Uncomment when we have those tests (ISSUE #28)
+  # unit-tests:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+  #     - name: Set up Python
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: '3.11'
 
-      - name: Install dependencies
-        run: pip install torch numpy opencv-python-headless pytest
+  #     - name: Install dependencies
+  #       run: pip install torch numpy opencv-python-headless pytest
 
-      - name: Run unit tests
-        run: |
-          pytest ai/pipeline/tests/test_pipeline.py -v --tb=short
+  #     - name: Run unit tests
+  #       run: |
+  #         pytest ai/pipeline/tests/test_pipeline.py -v --tb=short
