@@ -1,50 +1,91 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 language: en
-
+tone_instructions: Be concise and technical. No motivational language.
 reviews:
   profile: assertive
-  changelog_summary: false
+  sequence_diagrams: false
+  related_prs: false
+  suggested_labels: false
+  suggested_reviewers: false
+  poem: false
+  path_filters:
+    - '!.github/workflows/todo-scanner.yml'
+    - '!docs/**'
+  path_instructions:
+    - path: '**/*'
+      instructions: >
+        Post exactly two types of output, nothing else:
+
+
+        1. ONE top-level summary comment with this exact format, no emoji:
+
+
+        SUMMARY:
+
+        Brief description of what the PR changes.
+
+
+        ERRORS:
+
+        Number of errors: N
+
+        [line X-Y][filename] - description
+
+
+        WARNINGS:
+
+        Number of warnings: N
+
+        [line X-Y][filename] - description
+
+
+        POSSIBLE STYLE CORRECTIONS:
+
+        [line X-Y][filename] - description
+
+
+        POLISH LANGUAGE DETECTED:
+
+        Scan only files changed in this PR (exclude docs/).
+
+        List every occurrence of Polish in code (comments, strings, variable names, print
+        statements).
+
+        If none found, write "None".
+
+        [line X-Y][filename] - description
+
+
+        RELATED ISSUES:
+
+        List any GitHub issues this PR relates to, or "None".
+
+
+        SUGGESTED REVIEWERS:
+
+        List 2-3 reviewers or "None".
+
+
+        2. SEPARATE inline comments for each individual error and warning, posted directly on the
+        relevant line(s). Each inline comment must follow this format, no emoji:
+
+
+        [ERROR] or [WARNING]
+
+        description of the issue
+
+        suggested fix (if applicable)
+
+
+        Rules for all output:
+
+        - No emoji anywhere
+
+        - Focus on: logic errors, type mismatches between Swift and Python, missing error handling,
+
+        hardcoded values, security issues in file uploads
+
+        - Strictly follow the formats above
   auto_review:
-    enabled: true
     base_branches:
       - main
-  path_filters:
-    - "!.github/workflows/todo-scanner.yml"
-    - "!docs/**"
-
-  instructions: |
-    Always format your review exactly like this, with no emoji anywhere:
-
-    SUMMARY:
-    Brief description of what the PR changes.
-
-    ERRORS:
-    Number of errors: N
-    [line X-Y][filename] - description
-
-    WARNINGS:
-    Number of warnings: N
-    [line X-Y][filename] - description
-
-    POSSIBLE STYLE CORRECTIONS:
-    [line X-Y][filename] - description
-
-    POLISH LANGUAGE DETECTED:
-    Scan only the files that were changed in this PR (exclude anything in docs/).
-    List every occurrence of Polish language found in code (comments, strings, variable names, print statements).
-    If none found, write "None".
-    [line X-Y][filename] - description of what Polish text was found
-
-    RELATED ISSUES:
-    List any GitHub issues this PR relates to, or "None".
-
-    SUGGESTED REVIEWERS:
-    Based on changed files, suggest which team members should review - use CodeRabbit's suggested_reviewers feature to get the list of reviewers.
-    List 2-3 reviewers or "None".
-
-    Rules for your review:
-    - No emoji anywhere in the review
-    - Do not flag Polish language as an error (it is listed separately in POLISH LANGUAGE DETECTED)
-    - Do not flag style issues already covered by SwiftLint or flake8
-    - Focus on: logic errors, type mismatches between Swift and Python,
-      missing error handling, hardcoded values, security issues in file uploads
-    - Strictly follow the format above, with the same section titles and order
