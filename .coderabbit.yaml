@@ -4,87 +4,41 @@ tone_instructions: Be concise and technical. No motivational language.
 reviews:
   profile: assertive
   sequence_diagrams: false
-  related_prs: false
   suggested_labels: false
-  suggested_reviewers: false
   poem: false
   path_filters:
     - '!.github/workflows/todo-scanner.yml'
     - '!docs/**'
   path_instructions:
     - path: '**/*'
-      instructions: >
+      instructions: >-
         Post exactly two types of output, nothing else:
-
 
         1. ONE top-level summary comment with this exact format, no emoji:
 
+        SUMMARY: Brief description of what the PR changes.
 
-        SUMMARY:
+        ERRORS: Number of errors: N [line X-Y][filename] - description
 
-        Brief description of what the PR changes.
+        WARNINGS: Number of warnings: N [line X-Y][filename] - description
 
+        POSSIBLE STYLE CORRECTIONS: [line X-Y][filename] - description
 
-        ERRORS:
+        POLISH LANGUAGE DETECTED: Scan only files changed in this PR (exclude docs/). List every
+        occurrence of Polish in code (comments, strings, variable names, print statements). If none
+        found, write "None". [line X-Y][filename] - description
 
-        Number of errors: N
+        RELATED ISSUES: List any GitHub issues this PR relates to, or "None".
 
-        [line X-Y][filename] - description
-
-
-        WARNINGS:
-
-        Number of warnings: N
-
-        [line X-Y][filename] - description
-
-
-        POSSIBLE STYLE CORRECTIONS:
-
-        [line X-Y][filename] - description
-
-
-        POLISH LANGUAGE DETECTED:
-
-        Scan only files changed in this PR (exclude docs/).
-
-        List every occurrence of Polish in code (comments, strings, variable names, print
-        statements).
-
-        If none found, write "None".
-
-        [line X-Y][filename] - description
-
-
-        RELATED ISSUES:
-
-        List any GitHub issues this PR relates to, or "None".
-
-
-        SUGGESTED REVIEWERS:
-
-        List 2-3 reviewers or "None".
-
+        SUGGESTED REVIEWERS: List 2-3 reviewers or "None".
 
         2. SEPARATE inline comments for each individual error and warning, posted directly on the
         relevant line(s). Each inline comment must follow this format, no emoji:
 
+        [ERROR] or [WARNING] description of the issue suggested fix (if applicable)
 
-        [ERROR] or [WARNING]
-
-        description of the issue
-
-        suggested fix (if applicable)
-
-
-        Rules for all output:
-
-        - No emoji anywhere
-
-        - Focus on: logic errors, type mismatches between Swift and Python, missing error handling,
-
-        hardcoded values, security issues in file uploads
-
+        Rules for all output: - No emoji anywhere - Focus on: logic errors, type mismatches between
+        Swift and Python, missing error handling, hardcoded values, security issues in file uploads
         - Strictly follow the formats above
   auto_review:
     base_branches:
