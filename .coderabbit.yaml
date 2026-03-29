@@ -3,6 +3,7 @@ language: en
 tone_instructions: Be concise and technical. No motivational language.
 reviews:
   profile: assertive
+  high_level_summary: false
   review_status: false
   changed_files_summary: false
   sequence_diagrams: false
@@ -59,6 +60,16 @@ reviews:
         If none found, write "None".
 
         [line X-Y][filename] - description
+
+
+        RELATED ISSUES:
+
+        List any GitHub issues this PR relates to, or "None".
+
+
+        SUGGESTED REVIEWERS:
+
+        List 2-3 reviewers or "None".
 
 
         2. SEPARATE inline comment for each error and warning, posted on the relevant line, no
