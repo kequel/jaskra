@@ -24,6 +24,7 @@ reviews:
           No conversational filler like "Great job" or "I noticed". 
           Focus only on logic, security, and performance.
   auto_review:
+    enabled: true
     base_branches:
       - main
   finishing_touches:
