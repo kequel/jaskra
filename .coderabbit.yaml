@@ -61,16 +61,6 @@ reviews:
         [line X-Y][filename] - description
 
 
-        RELATED ISSUES:
-
-        List any GitHub issues this PR relates to, or "None".
-
-
-        SUGGESTED REVIEWERS:
-
-        List 2-3 reviewers or "None".
-
-
         2. SEPARATE inline comment for each error and warning, posted on the relevant line, no
         emoji:
 
