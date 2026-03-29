@@ -3,14 +3,20 @@ language: en
 tone_instructions: Be concise and technical. No motivational language.
 reviews:
   profile: assertive
-  high_level_summary_instructions: Short summary of changes
+  high_level_summary: true 
+  high_level_summary_instructions: >
+    Short bullet-points summary. 
+    Start with "Coderabbit's summary:".
+  changed_files_summary: false
+  related_prs: true
+  related_issues: true
   review_status: false
   collapse_walkthrough: false
   sequence_diagrams: false
   estimate_code_review_effort: false
   assess_linked_issues: false
   suggested_labels: false
-  suggested_reviewers: false
+  suggested_reviewers: true 
   auto_assign_reviewers: true
   in_progress_fortune: false
   poem: false
@@ -21,10 +27,9 @@ reviews:
     - path: '**/*'
       instructions: |-
         Strictly technical and concise. ABSOLUTELY NO EMOJI. 
-          No conversational filler like "Great job" or "I noticed". 
-          Focus only on logic, security, and performance.
+        No conversational filler like "Great job" or "I noticed". 
+        Focus only on logic, security, and performance.
   auto_review:
-    enabled: true
     base_branches:
       - main
   finishing_touches:
