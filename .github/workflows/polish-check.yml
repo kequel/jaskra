@@ -12,15 +12,24 @@ jobs:
       - name: Get changed files
         id: files
         run: |
-          echo "changed_files=$(git diff --name-only origin/${{ github.base_ref }} | grep -v '^docs/' | xargs)" >> $GITHUB_OUTPUT
+          {
+            echo "changed_files<<EOF"
+            git diff --name-only "origin/${{ github.base_ref }}" -- . ':(exclude)docs/**'
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Check for Polish characters
         run: |
-          FILES="${{ steps.files.outputs.changed_files }}"
           FOUND=0
-          for file in $FILES; do
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
             if [ -f "$file" ]; then
               grep -nP "[ąęćłńóśźżĄĘĆŁŃÓŚŹŻ]" "$file" && FOUND=1 && echo "Found Polish in $file"
+            fi
+          done <<< "${{ steps.files.outputs.changed_files }}"
+          if [ $FOUND -eq 1 ]; then
+            echo "::warning title=Polish Language Detected::Found polish characters (comments/strings). Check logs."
+          fi
             fi
           done
           if [ $FOUND -eq 1 ]; then
