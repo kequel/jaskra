@@ -5,6 +5,10 @@ struct HomeView: View {
     @ObservedObject var vm: GlaucomaViewModel
     @State private var appeared = false
     @State private var imageAppeared = false
+    @State private var showSourceSheet = false
+    @State private var pickerSource: UIImagePickerController.SourceType = .photoLibrary
+    @State private var showPicker = false
+    @State private var cameraUnavailableAlert = false
 
     var body: some View {
         ZStack {
@@ -57,7 +61,7 @@ struct HomeView: View {
 
                     // image drop
                     Button {
-                        vm.showPicker = true
+                        showSourceSheet = true
                     } label: {
                         ZStack {
                             RoundedRectangle(cornerRadius: 20)
@@ -108,7 +112,7 @@ struct HomeView: View {
                                             .font(.system(size: 26, weight: .light))
                                             .foregroundStyle(Color.accentCyan.opacity(0.7))
                                     }
-                                    Text("Dotknij, aby wybrać zdjęcie")
+                                    Text("Dotknij, aby dodać zdjęcie")
                                         .font(.system(size: 15, weight: .medium))
                                         .foregroundStyle(Color.textSecondary)
                                     Text("Zdjęcie dna oka (fundus photography)")
@@ -125,6 +129,32 @@ struct HomeView: View {
                     .opacity(imageAppeared ? 1 : 0)
                     .offset(y: imageAppeared ? 0 : 20)
                     .animation(.easeOut(duration: 0.6).delay(0.25), value: imageAppeared)
+                    // Camera / Gallery buttons
+                    HStack(spacing: 12) {
+                        SourceButton(
+                            icon: "camera.fill",
+                            label: "Aparat"
+                        ) {
+                            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                pickerSource = .camera
+                                showPicker = true
+                            } else {
+                                cameraUnavailableAlert = true
+                            }
+                        }
+
+                        SourceButton(
+                            icon: "photo.on.rectangle",
+                            label: "Galeria"
+                        ) {
+                            pickerSource = .photoLibrary
+                            showPicker = true
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 14)
+                    .opacity(imageAppeared ? 1 : 0)
+                    .animation(.easeOut(duration: 0.5).delay(0.35), value: imageAppeared)
 
                     // analyze button
                     Button {
@@ -151,7 +181,7 @@ struct HomeView: View {
                     }
                     .disabled(vm.selectedImage == nil)
                     .padding(.horizontal, 24)
-                    .padding(.top, 20)
+                    .padding(.top, 14)
                     .opacity(imageAppeared ? 1 : 0)
                     .animation(.easeOut(duration: 0.5).delay(0.4), value: imageAppeared)
 
@@ -182,12 +212,48 @@ struct HomeView: View {
             appeared = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { imageAppeared = true }
         }
-        .sheet(isPresented: $vm.showPicker) {
-            ImagePicker(image: $vm.selectedImage)
+	// ImagePicker sheet
+	        .sheet(isPresented: $showPicker) {
+            ImagePicker(image: $vm.selectedImage, sourceType: pickerSource)
+        }
+        // Camera unavailable alert (simulator)
+        .alert("Aparat niedostępny", isPresented: $cameraUnavailableAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Aparat nie jest dostępny na tym urządzeniu. Wybierz zdjęcie z galerii.")
         }
     }
 }
 
+// Source Button
+struct SourceButton: View {
+    let icon: String
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .medium))
+                Text(label)
+                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                    .tracking(1)
+            }
+            .foregroundStyle(Color.accentCyan)
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
+            .background(Color.accentCyan.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.accentCyan.opacity(0.3), lineWidth: 1)
+            )
+        }
+    }
+}
+
+// Info Pill
 struct InfoPill: View {
     let icon: String
     let text: String
