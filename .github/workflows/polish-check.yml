@@ -34,8 +34,3 @@ jobs:
           if [ $FOUND -eq 1 ]; then
             echo "::warning title=Polish Language Detected::Found polish characters (comments/strings). Check logs."
           fi
-            fi
-          done
-          if [ $FOUND -eq 1 ]; then
-            echo "::warning title=Polish Language Detected::Found polish characters (comments/strings). Check logs."
-          fi
