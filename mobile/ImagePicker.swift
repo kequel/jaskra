@@ -3,7 +3,7 @@ import UIKit
 
 struct ImagePicker: UIViewControllerRepresentable {
     @Binding var image: UIImage?
-    var sourceType: UIImagePickerController.SourceType = .photoLibrary
+    var sourceType: UIImagePickerController.SourceType = .camera
     @Environment(\.dismiss) private var dismiss
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
@@ -27,6 +27,7 @@ struct ImagePicker: UIViewControllerRepresentable {
             parent.image = info[.originalImage] as? UIImage
             parent.dismiss()
         }
+
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             parent.dismiss()
         }

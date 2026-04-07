@@ -7,6 +7,9 @@ struct HomeView: View {
     @State private var appeared = false
     @State private var imageAppeared = false
     @State private var photosPickerItem: PhotosPickerItem?
+    @State private var showSourceDialog = false
+    @State private var showCamera = false
+    @State private var showPhotosPicker = false
 
     var body: some View {
         ZStack {
@@ -58,7 +61,9 @@ struct HomeView: View {
                     .animation(.easeOut(duration: 0.7), value: appeared)
 
                     // image drop
-                    PhotosPicker(selection: $photosPickerItem, matching: .images) {
+                    Button {
+                        showSourceDialog = true
+                    } label: {
                         ZStack {
                             RoundedRectangle(cornerRadius: 20)
                                 .fill(Color.cardBackground)
@@ -119,6 +124,13 @@ struct HomeView: View {
                             }
                         }
                         .frame(height: vm.selectedImage != nil ? 260 : 200)
+                    }
+                    .confirmationDialog("Wybierz źródło zdjęcia", isPresented: $showSourceDialog) {
+                        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                            Button("Aparat") { showCamera = true }
+                        }
+                        Button("Galeria") { showPhotosPicker = true }
+                        Button("Anuluj", role: .cancel) {}
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 36)
@@ -181,6 +193,10 @@ struct HomeView: View {
         .onAppear {
             appeared = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { imageAppeared = true }
+        }
+        .photosPicker(isPresented: $showPhotosPicker, selection: $photosPickerItem, matching: .images)
+        .sheet(isPresented: $showCamera) {
+            ImagePicker(image: $vm.selectedImage, sourceType: .camera)
         }
         .onChange(of: photosPickerItem) { _, newItem in
             Task {
