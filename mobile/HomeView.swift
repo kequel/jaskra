@@ -1,14 +1,12 @@
 import SwiftUI
+import PhotosUI
 
 // Home Screen
 struct HomeView: View {
     @ObservedObject var vm: GlaucomaViewModel
     @State private var appeared = false
     @State private var imageAppeared = false
-    @State private var showSourceSheet = false
-    @State private var pickerSource: UIImagePickerController.SourceType = .photoLibrary
-    @State private var showPicker = false
-    @State private var cameraUnavailableAlert = false
+    @State private var photosPickerItem: PhotosPickerItem?
 
     var body: some View {
         ZStack {
@@ -29,7 +27,7 @@ struct HomeView: View {
 
                     // header:
                     VStack(spacing: 12) {
-                        // eye 
+                        // eye
                         ZStack {
                             PulsingCircle(color: .accentCyan)
                                 .frame(width: 88, height: 88)
@@ -60,9 +58,7 @@ struct HomeView: View {
                     .animation(.easeOut(duration: 0.7), value: appeared)
 
                     // image drop
-                    Button {
-                        showSourceSheet = true
-                    } label: {
+                    PhotosPicker(selection: $photosPickerItem, matching: .images) {
                         ZStack {
                             RoundedRectangle(cornerRadius: 20)
                                 .fill(Color.cardBackground)
@@ -129,32 +125,6 @@ struct HomeView: View {
                     .opacity(imageAppeared ? 1 : 0)
                     .offset(y: imageAppeared ? 0 : 20)
                     .animation(.easeOut(duration: 0.6).delay(0.25), value: imageAppeared)
-                    // Camera / Gallery buttons
-                    HStack(spacing: 12) {
-                        SourceButton(
-                            icon: "camera.fill",
-                            label: "Aparat"
-                        ) {
-                            if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                                pickerSource = .camera
-                                showPicker = true
-                            } else {
-                                cameraUnavailableAlert = true
-                            }
-                        }
-
-                        SourceButton(
-                            icon: "photo.on.rectangle",
-                            label: "Galeria"
-                        ) {
-                            pickerSource = .photoLibrary
-                            showPicker = true
-                        }
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.top, 14)
-                    .opacity(imageAppeared ? 1 : 0)
-                    .animation(.easeOut(duration: 0.5).delay(0.35), value: imageAppeared)
 
                     // analyze button
                     Button {
@@ -195,7 +165,7 @@ struct HomeView: View {
                     .opacity(imageAppeared ? 1 : 0)
                     .animation(.easeOut(duration: 0.5).delay(0.55), value: imageAppeared)
 
-                    //  Disclaimer
+                    // Disclaimer
                     Text("Wynik ma charakter informacyjny i nie zastępuje konsultacji lekarskiej.")
                         .font(.system(size: 11))
                         .foregroundStyle(Color.textTertiary)
@@ -212,43 +182,13 @@ struct HomeView: View {
             appeared = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { imageAppeared = true }
         }
-	// ImagePicker sheet
-	        .sheet(isPresented: $showPicker) {
-            ImagePicker(image: $vm.selectedImage, sourceType: pickerSource)
-        }
-        // Camera unavailable alert (simulator)
-        .alert("Aparat niedostępny", isPresented: $cameraUnavailableAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Aparat nie jest dostępny na tym urządzeniu. Wybierz zdjęcie z galerii.")
-        }
-    }
-}
-
-// Source Button
-struct SourceButton: View {
-    let icon: String
-    let label: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 15, weight: .medium))
-                Text(label)
-                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                    .tracking(1)
+        .onChange(of: photosPickerItem) { _, newItem in
+            Task {
+                if let data = try? await newItem?.loadTransferable(type: Data.self),
+                   let uiImage = UIImage(data: data) {
+                    vm.selectedImage = uiImage
+                }
             }
-            .foregroundStyle(Color.accentCyan)
-            .frame(maxWidth: .infinity)
-            .frame(height: 44)
-            .background(Color.accentCyan.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.accentCyan.opacity(0.3), lineWidth: 1)
-            )
         }
     }
 }
