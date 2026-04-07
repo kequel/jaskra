@@ -32,5 +32,6 @@ jobs:
             fi
           done <<< "${{ steps.files.outputs.changed_files }}"
           if [ $FOUND -eq 1 ]; then
-            echo "::warning title=Polish Language Detected::Found polish characters (comments/strings). Check logs."
+            echo "::error title=Polish Language Detected::Found Polish characters (comments/strings). Check logs."
+            exit 1
           fi
