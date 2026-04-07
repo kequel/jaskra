@@ -30,6 +30,7 @@ reviews:
         Strictly technical and concise. ABSOLUTELY NO EMOJI.
         No conversational filler like "Great job" or "I noticed".
         Focus only on logic, security, and performance.
+        I need suggested PR reviewers and linked issues, add them.
   auto_review:
     enabled: true
     base_branches:
