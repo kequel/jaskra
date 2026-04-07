@@ -138,7 +138,7 @@ struct HomeView: View {
                     .padding(.top, 20)
                     .opacity(imageAppeared ? 1 : 0)
 
-                    // info row:
+                    // TODO: Time in info
                     HStack(spacing: 32) {
                         InfoPill(icon: "cpu", text: "AI Model")
                         InfoPill(icon: "lock.shield", text: "Prywatność")
