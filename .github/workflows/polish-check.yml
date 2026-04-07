@@ -14,7 +14,11 @@ jobs:
         run: |
           {
             echo "changed_files<<EOF"
-            git diff --name-only "origin/${{ github.base_ref }}" -- . ':(exclude)docs/**'
+            # docs can be in Polish, UI is in Polish, this file has Polish characters -> so we exclude those
+            git diff --name-only "origin/${{ github.base_ref }}" -- . \
+              ':(exclude)docs/**' \
+              ':(exclude)mobile/**' \
+              ':(exclude).github/workflows/polish-check.yml'
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
