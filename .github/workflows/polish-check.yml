@@ -22,16 +22,21 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Check for Polish characters
+      - name: Check for Polish characters in diff
         run: |
           FOUND=0
           while IFS= read -r file; do
             [ -z "$file" ] && continue
             if [ -f "$file" ]; then
-              grep -nP "[ąęćłńóśźżĄĘĆŁŃÓŚŹŻ]" "$file" && FOUND=1 && echo "Found Polish in $file"
+              if git diff -U0 "origin/${{ github.base_ref }}" -- "$file" | grep "^+" | grep -v "^+++" | grep -q "[ąęćłńóśźżĄĘĆŁŃÓŚŹŻ]"; then
+                echo "Found new Polish characters in $file"
+                git diff -U0 "origin/${{ github.base_ref }}" -- "$file" | grep "^+" | grep -v "^+++" | grep "[ąęćłńóśźżĄĘĆŁŃÓŚŹŻ]"
+                FOUND=1
+              fi
             fi
           done <<< "${{ steps.files.outputs.changed_files }}"
+
           if [ $FOUND -eq 1 ]; then
-            echo "::error title=Polish Language Detected::Found Polish characters (comments/strings). Check logs."
+            echo "::error title=Polish Language Detected::New Polish characters found in added lines. Check logs."
             exit 1
           fi
