@@ -219,3 +219,21 @@ struct SourceCard: View {
         )
     }
 }
+
+// Info Pill
+struct InfoPill: View {
+    let icon: String
+    let text: String
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .light))
+                .foregroundStyle(Color.accentCyan.opacity(0.7))
+            Text(text)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color.textTertiary)
+                .tracking(0.5)
+        }
+    }
+}
