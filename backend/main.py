@@ -3,7 +3,12 @@ from fastapi.responses import JSONResponse
 from PIL import Image, ImageDraw
 import io
 import base64
-import random
+import os
+import sys
+import tempfile
+import numpy as np
+import cv2
+
 
 app = FastAPI()
 
@@ -17,22 +22,82 @@ async def analyze_glaucoma(file: UploadFile = File(...)):
         image = image.convert('RGB')
         
     # =========================================================
-    # // AI model invocation here (glaucoma detection and masks)
+    # // AI model invocation starts here
     # =========================================================
     
-    # Simulate model results:
-    is_glaucoma = random.choice([True, False])
-    confidence = round(random.uniform(0.85, 0.99), 2)
-    cup_to_disc_ratio = round(random.uniform(0.3, 0.8), 2) 
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.dirname(current_dir)
+    ai_dir = os.path.join(root_dir, 'ai')
     
-    # Simulate applying a mask to the image
-    draw = ImageDraw.Draw(image)
-    width, height = image.size
-    draw.ellipse(
-        [(width * 0.3, height * 0.3), (width * 0.7, height * 0.7)], 
-        outline="red" if is_glaucoma else "green", 
-        width=8
-    )
+    if ai_dir not in sys.path:
+        sys.path.append(ai_dir)
+        
+    from pipeline.pipeline import GlaucomaPipeline
+
+    # Global initialization
+    global glaucoma_pipeline
+    if 'glaucoma_pipeline' not in globals():
+        yolo_path = os.path.join(ai_dir, 'pipeline', 'models', 'best.pt')
+        unet_path = os.path.join(ai_dir, 'pipeline', 'models', 'unetpp_best.pth')
+        print("[*] Inicjalizacja modeli AI...")
+        glaucoma_pipeline = GlaucomaPipeline(yolo_path=yolo_path, unet_path=unet_path, device='cpu')
+
+    # Temporary file for pipeline
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+        tmp_path = tmp.name
+        image.save(tmp_path)
+
+    try:
+        result = glaucoma_pipeline.run(tmp_path)
+        
+        if result is not None:
+            _, _, _, cdr_val, _, _ = result
+            cup_to_disc_ratio = round(float(cdr_val), 2)
+            is_glaucoma = bool(cup_to_disc_ratio > 0.65)
+            confidence = 0.95 
+        else:
+            is_glaucoma = False
+            cup_to_disc_ratio = 0.0
+            confidence = 0.0
+            
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+  
+
+    
+    open_cv_image = np.array(image) 
+
+    #Applying masks to image
+    if result is not None:
+        full_img, crops, masks, cdr_val, _, _ = result
+        
+        if len(crops) > 0:
+            x1, y1, x2, y2 = crops[0]
+            disc_mask = masks[0][0] 
+            cup_mask = masks[0][1]  
+
+            roi = open_cv_image[y1:y2, x1:x2]
+            
+            roi_h, roi_w = roi.shape[:2]
+            disc_resized = cv2.resize(disc_mask, (roi_w, roi_h))
+            cup_resized = cv2.resize(cup_mask, (roi_w, roi_h))
+
+            roi[disc_resized > 0.5] = roi[disc_resized > 0.5] * 0.5 + np.array([0, 255, 0]) * 0.5
+            roi[cup_resized > 0.5] = roi[cup_resized > 0.5] * 0.5 + np.array([255, 0, 0]) * 0.5
+
+            open_cv_image[y1:y2, x1:x2] = roi
+
+    image = Image.fromarray(open_cv_image)
+
+    # =========================================================
+    # // AI model invocation ends here
+    # =========================================================
+    
+    # =========================================================
+    # // AI model invocation ends here
+    # =========================================================
     
     # 2. Encode the processed image to Base64
     buffered = io.BytesIO()
