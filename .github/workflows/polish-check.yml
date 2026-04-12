@@ -1,0 +1,42 @@
+name: Polish Language Check
+on: [pull_request]
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: files
+        run: |
+          {
+            echo "changed_files<<EOF"
+            # docs can be in Polish, UI is in Polish, this file has Polish characters -> so we exclude those
+            git diff --name-only "origin/${{ github.base_ref }}" -- . \
+              ':(exclude)docs/**' \
+              ':(exclude)mobile/**' \
+              ':(exclude).github/workflows/polish-check.yml'
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check for Polish characters in diff
+        run: |
+          FOUND=0
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            if [ -f "$file" ]; then
+              if git diff -U0 "origin/${{ github.base_ref }}" -- "$file" | grep "^+" | grep -v "^+++" | grep -q "[ąęćłńóśźżĄĘĆŁŃÓŚŹŻ]"; then
+                echo "Found new Polish characters in $file"
+                git diff -U0 "origin/${{ github.base_ref }}" -- "$file" | grep "^+" | grep -v "^+++" | grep "[ąęćłńóśźżĄĘĆŁŃÓŚŹŻ]"
+                FOUND=1
+              fi
+            fi
+          done <<< "${{ steps.files.outputs.changed_files }}"
+
+          if [ $FOUND -eq 1 ]; then
+            echo "::error title=Polish Language Detected::New Polish characters found in added lines. Check logs."
+            exit 1
+          fi
