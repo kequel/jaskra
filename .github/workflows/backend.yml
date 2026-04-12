@@ -1,0 +1,139 @@
+name: Backend CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  # block merge if not existing modules are imported or syntax errors
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt httpx flake8
+
+      - name: Flake8 - syntax and import errors (blocks merge)
+        run: |
+          flake8 backend/ \
+            --select=E9,F401,F811,F821 \
+            --exclude=backend/.gitkeep \
+            --format='::error file=%(path)s,line=%(row)d::%(text)s'
+
+      - name: Flake8 - style warning (does not block merge)
+        run: |
+          flake8 backend/ \
+            --max-line-length=120 \
+            --exclude=E9,F401,F811,F821 \
+            --exclude=backend/.gitkeep \
+            --format='::warning file=%(path)s,line=%(row)d::%(text)s'
+        continue-on-error: true
+
+  # blocks merge if endpoint /analyze-glaucoma doesn't respond correctly
+  integration-test:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt httpx
+
+      - name: Start FastAPI server
+        run: |
+          cd backend
+          uvicorn main:app --host 0.0.0.0 --port 8000 &
+          curl --retry 10 --retry-delay 60 --retry-connrefused http://localhost:8000/docs > /dev/null 2>&1
+          # trying for 10 minutes, 60 seconds apart, until the server is up
+
+      - name: Test POST /analyze-glaucoma
+        run: |
+          python3 - <<'EOF'
+          import httpx, base64, io, sys
+          from PIL import Image
+
+          img = Image.new("RGB", (100, 100), color=(180, 100, 80))
+          buf = io.BytesIO()
+          img.save(buf, format="JPEG")
+          buf.seek(0)
+
+          resp = httpx.post(
+              "http://localhost:8000/analyze-glaucoma",
+              files={"file": ("test.jpg", buf, "image/jpeg")},
+              timeout=30
+          )
+
+          if resp.status_code != 200:
+              print(f"::error::Endpoint gave {resp.status_code}")
+              sys.exit(1)
+
+          data = resp.json()
+          expected_keys = {"has_glaucoma", "confidence", "cup_to_disc_ratio", "image_base64"}
+          missing = expected_keys - data.keys()
+          if missing:
+              print(f"::error::Missing fields in response: {missing}")
+              sys.exit(1)
+
+          if not isinstance(data["has_glaucoma"], bool):
+              print("::error::has_glaucoma should be a boolean")
+              sys.exit(1)
+          if not (0.0 <= data["confidence"] <= 1.0):
+              print(f"::error::confidence out of [0,1]: {data['confidence']}")
+              sys.exit(1)
+          if not (0.0 <= data["cup_to_disc_ratio"] <= 1.0):
+              print(f"::error::cup_to_disc_ratio out of [0,1]: {data['cup_to_disc_ratio']}")
+              sys.exit(1)
+          try:
+              base64.b64decode(data["image_base64"])
+          except Exception:
+              print("::error::image_base64 is not valid base64")
+              sys.exit(1)
+
+          print("Response is correct")
+          print(f"  has_glaucoma:      {data['has_glaucoma']}")
+          print(f"  confidence:        {data['confidence']}")
+          print(f"  cup_to_disc_ratio: {data['cup_to_disc_ratio']}")
+          EOF
+
+  # check if Swift CodingKeys are in sync with backend response fields
+  swift-backend-sync:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check Swift CodingKeys vs backend response
+        run: |
+          python3 - <<'EOF'
+          import re
+
+          backend_keys = {"has_glaucoma", "confidence", "cup_to_disc_ratio", "image_base64"}
+
+          swift = open("mobile/GlaucomaService.swift").read()
+          swift_keys = set(re.findall(r'case \w+\s*=\s*"(\w+)"', swift))
+
+          for key in swift_keys - backend_keys:
+              print(f"::warning::Swift expects key '{key}' which is not in the backend")
+          for key in backend_keys - swift_keys:
+              print(f"::warning::Backend returns '{key}' which is not in Swift CodingKeys")
+
+          if swift_keys == backend_keys:
+              print(f"Models are synchronized: {sorted(swift_keys)}")
+          EOF
+        continue-on-error: true

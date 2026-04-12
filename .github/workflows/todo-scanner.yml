@@ -1,0 +1,97 @@
+name: TODO scanner
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  scan-todos:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Checkout full repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan TODOs and post PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execSync } = require('child_process');
+
+            // 1. .github/workflows — only # TODO / # TODO: / #TODO / #TODO:
+            const rawWorkflows = execSync(
+              `grep -rn "#\\s*TODO:*\\s*" .github/workflows/ 2>/dev/null || true`,
+              { encoding: 'utf8' }
+            );
+
+            // 2. everything else except docs/, .git/, .md files
+            const rawCode = execSync(
+              `grep -rni "TODO" . \
+                --exclude-dir=".git" \
+                --exclude-dir=".github" \
+                --exclude-dir="docs" \
+                --exclude="*.md" \
+                --exclude="*.ipynb" \
+                --exclude="*.yaml" \
+                2>/dev/null || true`,
+              { encoding: 'utf8' }
+            );
+
+            // 3. .md files — not searched at all (skip)
+
+            const parseLines = (raw, commentPrefix) => {
+              const results = [];
+              for (const line of raw.trim().split('\n').filter(Boolean)) {
+                let match;
+                if (commentPrefix) {
+                  match = line.match(/^\.\/(.+?):(\d+):\s*#\s*TODO:?\s*(.*)/i);
+                } else {
+                  match = line.match(/^\.\/(.+?):(\d+):\s*.*?TODO:?\s*(.*)/i);
+                }
+                if (match) {
+                  const [, file, lineNum, text] = match;
+                  const cleaned = text.trim() || '(no description)';
+                  results.push(`[line ${lineNum}] [${file}] - ${cleaned}`);
+                }
+              }
+              return results;
+            };
+
+            const workflowTodos = parseLines(rawWorkflows, true);
+            const codeTodos = parseLines(rawCode, false);
+            const all = [...workflowTodos, ...codeTodos];
+
+            let body = '## REMAINING TODOs (from todo-scanner)\n\n';
+            body += all.length === 0 ? 'None\n' : all.join('\n') + '\n';
+
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.data.find(c =>
+              c.user?.login === 'github-actions[bot]' &&
+              c.body.startsWith('## REMAINING TODOs (from todo-scanner)')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
