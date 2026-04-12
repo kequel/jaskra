@@ -45,6 +45,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          lfs: true 
+
+      - name: Checkout LFS objects
+        run: git lfs checkout 
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -80,6 +85,7 @@ jobs:
 
           if resp.status_code != 200:
               print(f"::error::Endpoint gave {resp.status_code}")
+              print(f"Error message: {resp.text}")
               sys.exit(1)
 
           data = resp.json()
