@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import JSONResponse
-from PIL import Image, ImageDraw
+from PIL import Image
 import io
 import base64
 import os
