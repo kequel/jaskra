@@ -80,6 +80,7 @@ jobs:
 
           if resp.status_code != 200:
               print(f"::error::Endpoint gave {resp.status_code}")
+              print(f"Error message: {resp.text}")
               sys.exit(1)
 
           data = resp.json()
