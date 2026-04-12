@@ -1,0 +1,35 @@
+name: PR Comment Cleanup
+
+on:
+  pull_request:
+    types: [synchronize]
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    
+    steps:
+      - name: Delete old bot comments
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botLogins = ['coderabbitai[bot]', 'github-actions[bot]'];
+
+            for (const comment of comments) {
+              if (botLogins.includes(comment.user.login)) {
+                console.log(`Deleting comment ${comment.id} from ${comment.user.login}`);
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment.id,
+                });
+              }
+            }
