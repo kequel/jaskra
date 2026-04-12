@@ -1,10 +1,15 @@
 import SwiftUI
+import PhotosUI
 
 // Home Screen
 struct HomeView: View {
     @ObservedObject var vm: GlaucomaViewModel
     @State private var appeared = false
     @State private var imageAppeared = false
+    @State private var photosPickerItem: PhotosPickerItem?
+    @State private var showSourceDialog = false
+    @State private var showCamera = false
+    @State private var showPhotosPicker = false
 
     var body: some View {
         ZStack {
@@ -25,7 +30,7 @@ struct HomeView: View {
 
                     // header:
                     VStack(spacing: 12) {
-                        // eye 
+                        // eye
                         ZStack {
                             PulsingCircle(color: .accentCyan)
                                 .frame(width: 88, height: 88)
@@ -37,52 +42,37 @@ struct HomeView: View {
                                 .foregroundStyle(Color.accentCyan)
                         }
                         .padding(.top, 52)
-                        .opacity(appeared ? 1 : 0)
-                        .offset(y: appeared ? 0 : -16)
 
                         Text("JASKRA AI")
                             .font(.system(size: 28, weight: .bold, design: .monospaced))
                             .tracking(6)
                             .foregroundStyle(Color.textPrimary)
-                            .opacity(appeared ? 1 : 0)
 
                         Text("Diagnostyka dna oka")
                             .font(.system(size: 14, weight: .medium))
                             .tracking(2)
                             .foregroundStyle(Color.textSecondary)
                             .textCase(.uppercase)
-                            .opacity(appeared ? 1 : 0)
                     }
+                    .opacity(appeared ? 1 : 0)
+                    .offset(y: appeared ? 0 : -16)
                     .animation(.easeOut(duration: 0.7), value: appeared)
 
-                    // image drop
-                    Button {
-                        vm.showPicker = true
-                    } label: {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 20)
-                                .fill(Color.cardBackground)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 20)
-                                        .stroke(
-                                            vm.selectedImage != nil
-                                            ? Color.accentCyan.opacity(0.5)
-                                            : Color.cardBorder,
-                                            style: StrokeStyle(lineWidth: 1, dash: vm.selectedImage == nil ? [8, 5] : [])
-                                        )
-                                )
-                                .shadow(color: vm.selectedImage != nil ? Color.accentCyan.opacity(0.15) : .clear,
-                                        radius: 20)
-
-                            if let img = vm.selectedImage {
-                                // show selected image
+                    // image selection
+                    Group {
+                        if let img = vm.selectedImage {
+                            // Selected image with change option
+                            Button {
+                                showSourceDialog = true
+                            } label: {
                                 Image(uiImage: img)
                                     .resizable()
                                     .scaledToFill()
+                                    .frame(maxWidth: .infinity)
                                     .frame(height: 260)
                                     .clipShape(RoundedRectangle(cornerRadius: 20))
+                                    .glowBorder(Color.accentCyan.opacity(0.3), radius: 20)
                                     .overlay(
-                                        // tap to change hint
                                         VStack {
                                             Spacer()
                                             HStack {
@@ -97,28 +87,28 @@ struct HomeView: View {
                                             }
                                         }
                                     )
-                            } else {
-                                // empty state
-                                VStack(spacing: 14) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(Color.accentCyan.opacity(0.08))
-                                            .frame(width: 64, height: 64)
-                                        Image(systemName: "photo.badge.plus")
-                                            .font(.system(size: 26, weight: .light))
-                                            .foregroundStyle(Color.accentCyan.opacity(0.7))
-                                    }
-                                    Text("Dotknij, aby wybrać zdjęcie")
-                                        .font(.system(size: 15, weight: .medium))
-                                        .foregroundStyle(Color.textSecondary)
-                                    Text("Zdjęcie dna oka (fundus photography)")
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(Color.textTertiary)
-                                }
-                                .frame(height: 200)
                             }
+                        } else {
+                            // Photo source options
+                            HStack(spacing: 16) {
+                                Button {
+                                    if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                        showCamera = true
+                                    } else {
+                                        showPhotosPicker = true // Fallback to photo picker if camera is not available
+                                    }
+                                } label: {
+                                    SourceCard(icon: "camera.fill", title: "Aparat", subtitle: "Zrób zdjęcie")
+                                }
+
+                                Button {
+                                    showPhotosPicker = true
+                                } label: {
+                                    SourceCard(icon: "photo.on.rectangle.angled", title: "Galeria", subtitle: "Wybierz zdjęcie")
+                                }
+                            }
+                            .frame(height: 160)
                         }
-                        .frame(height: vm.selectedImage != nil ? 260 : 200)
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 36)
@@ -126,7 +116,7 @@ struct HomeView: View {
                     .offset(y: imageAppeared ? 0 : 20)
                     .animation(.easeOut(duration: 0.6).delay(0.25), value: imageAppeared)
 
-                    // analyze button
+                    // action button:
                     Button {
                         vm.runAnalysis()
                     } label: {
@@ -140,20 +130,13 @@ struct HomeView: View {
                         .foregroundStyle(vm.selectedImage != nil ? Color.appBackground : Color.textTertiary)
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
-                        .background(
-                            vm.selectedImage != nil
-                            ? Color.accentCyan
-                            : Color.cardBorder
-                        )
+                        .background(vm.selectedImage != nil ? Color.accentCyan : Color.cardBorder)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
-                        .shadow(color: vm.selectedImage != nil ? Color.accentCyan.opacity(0.35) : .clear,
-                                radius: 16, y: 4)
                     }
                     .disabled(vm.selectedImage == nil)
                     .padding(.horizontal, 24)
                     .padding(.top, 20)
                     .opacity(imageAppeared ? 1 : 0)
-                    .animation(.easeOut(duration: 0.5).delay(0.4), value: imageAppeared)
 
                     // TODO: Time in info
                     HStack(spacing: 32) {
@@ -163,9 +146,7 @@ struct HomeView: View {
                     }
                     .padding(.top, 32)
                     .opacity(imageAppeared ? 1 : 0)
-                    .animation(.easeOut(duration: 0.5).delay(0.55), value: imageAppeared)
 
-                    //  Disclaimer
                     Text("Wynik ma charakter informacyjny i nie zastępuje konsultacji lekarskiej.")
                         .font(.system(size: 11))
                         .foregroundStyle(Color.textTertiary)
@@ -174,7 +155,6 @@ struct HomeView: View {
                         .padding(.top, 28)
                         .padding(.bottom, 48)
                         .opacity(imageAppeared ? 1 : 0)
-                        .animation(.easeOut(duration: 0.5).delay(0.65), value: imageAppeared)
                 }
             }
         }
@@ -182,12 +162,65 @@ struct HomeView: View {
             appeared = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { imageAppeared = true }
         }
-        .sheet(isPresented: $vm.showPicker) {
-            ImagePicker(image: $vm.selectedImage)
+        .photosPicker(isPresented: $showPhotosPicker, selection: $photosPickerItem, matching: .images)
+        
+        .fullScreenCover(isPresented: $showCamera) {
+            ImagePicker(image: $vm.selectedImage, sourceType: .camera)
+                .ignoresSafeArea()
+        }
+        
+        .confirmationDialog("Wybierz źródło", isPresented: $showSourceDialog) {
+            Button("Aparat") { showCamera = true }
+            Button("Galeria") { showPhotosPicker = true }
+            Button("Anuluj", role: .cancel) {}
+        }
+        .onChange(of: photosPickerItem) { _, newItem in
+            Task {
+                if let data = try? await newItem?.loadTransferable(type: Data.self),
+                   let uiImage = UIImage(data: data) {
+                    vm.selectedImage = uiImage
+                }
+            }
         }
     }
 }
 
+// Components for choice cards
+struct SourceCard: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(Color.accentCyan.opacity(0.1))
+                    .frame(width: 50, height: 50)
+                Image(systemName: icon)
+                    .font(.system(size: 20, weight: .light))
+                    .foregroundStyle(Color.accentCyan)
+            }
+            VStack(spacing: 4) {
+                Text(title)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Color.textPrimary)
+                Text(subtitle)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textSecondary)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(Color.cardBorder, style: StrokeStyle(lineWidth: 1, dash: [5, 5]))
+        )
+    }
+}
+
+// Info Pill
 struct InfoPill: View {
     let icon: String
     let text: String
