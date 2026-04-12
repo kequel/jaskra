@@ -73,7 +73,7 @@ async def analyze_glaucoma(file: UploadFile = File(...)):
     if result is not None:
         full_img, crops, masks, cdr_val, _, _ = result
         
-        if len(crops) > 0:
+        if len(crops) > 0 and len(masks[0]) >= 2: 
             x1, y1, x2, y2 = crops[0]
             disc_mask = masks[0][0] 
             cup_mask = masks[0][1]  
