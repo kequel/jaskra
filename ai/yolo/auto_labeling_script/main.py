@@ -4,7 +4,6 @@ import numpy as np
 
 
 def preprocess(img):
-
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     gray = clahe.apply(gray)
@@ -46,7 +45,6 @@ def draw_preview(image, x, y, w, h, score, out_path):
 
 
 def find_best_square_roi(full_img, cropped_img, min_size=40, max_size=320, step=4):
-
     full_gray = preprocess(full_img)
     crop_gray = preprocess(cropped_img)
 
@@ -65,10 +63,8 @@ def find_best_square_roi(full_img, cropped_img, min_size=40, max_size=320, step=
         result_gray = cv2.matchTemplate(full_gray, resized_crop_gray, cv2.TM_CCOEFF_NORMED)
         _, max_val_gray, _, max_loc_gray = cv2.minMaxLoc(result_gray)
 
-
         result_edge = cv2.matchTemplate(full_edges, resized_crop_edges, cv2.TM_CCOEFF_NORMED)
         _, max_val_edge, _, max_loc_edge = cv2.minMaxLoc(result_edge)
-
 
         if max_val_gray >= max_val_edge:
             x, y = max_loc_gray
@@ -91,14 +87,14 @@ def process_one_pair(full_image_path, cropped_image_path, output_txt_path,
     cropped_img = cv2.imread(cropped_image_path)
 
     if full_img is None:
-        raise ValueError(f"Nie udało się wczytać obrazu: {full_image_path}")
+        raise ValueError(f"Failed to load image: {full_image_path}")
     if cropped_img is None:
-        raise ValueError(f"Nie udało się wczytać cropa: {cropped_image_path}")
+        raise ValueError(f"Failed to load crop image: {cropped_image_path}")
 
     if full_img.shape[:2] != (512, 512):
-        print(f"Uwaga: pełny obraz ma rozmiar {full_img.shape[:2]}, a nie (512, 512)")
+        print(f"Warning: full image has size {full_img.shape[:2]} instead of (512, 512)")
     if cropped_img.shape[:2] != (640, 640):
-        print(f"Uwaga: crop ma rozmiar {cropped_img.shape[:2]}, a nie (640, 640)")
+        print(f"Warning: crop image has size {cropped_img.shape[:2]} instead of (640, 640)")
 
     best = find_best_square_roi(
         full_img,
@@ -109,12 +105,12 @@ def process_one_pair(full_image_path, cropped_image_path, output_txt_path,
     )
 
     if best is None:
-        raise RuntimeError("Nie znaleziono dopasowania.")
+        raise RuntimeError("No match found.")
 
     x, y, w, h, score = best
 
     if score < min_score:
-        print(f"Uwaga: niski score dopasowania: {score:.4f}")
+        print(f"Warning: low matching score: {score:.4f}")
 
     img_h, img_w = full_img.shape[:2]
     save_yolo_label(output_txt_path, class_id, x, y, w, h, img_w, img_h)
@@ -156,7 +152,7 @@ def process_folder(images_dir, cropped_dir, labels_dir, preview_dir=None,
                 break
 
         if crop_path is None:
-            print(f"[BRAK CROPA] {filename}")
+            print(f"[MISSING CROP] {filename}")
             fail_count += 1
             continue
 
@@ -178,12 +174,12 @@ def process_folder(images_dir, cropped_dir, labels_dir, preview_dir=None,
             print(f"[OK] {filename} -> score={result['score']:.4f}")
             ok_count += 1
         except Exception as e:
-            print(f"[BŁĄD] {filename} -> {e}")
+            print(f"[ERROR] {filename} -> {e}")
             fail_count += 1
 
-    print("\nPodsumowanie:")
+    print("\nSummary:")
     print(f"OK: {ok_count}")
-    print(f"Błędy: {fail_count}")
+    print(f"Errors: {fail_count}")
 
 
 if __name__ == "__main__":
@@ -203,4 +199,3 @@ if __name__ == "__main__":
         step=4,
         min_score=0.45
     )
-
