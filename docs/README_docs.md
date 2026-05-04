@@ -21,7 +21,7 @@ To maintain a professional and consistent look across all documents, use the pro
     * **Use for:** Internal team meetings.
     * **Filename convention:** `YYYY-MM-DD_meeting.pdf`
 
-2.  **`raports_and_technical_template.tex`**
+2.  **`technical_template.tex`**
     * **Use for:** Progress reports and technical documentation in `technical/` subdirectories.
     * **Filename convention (reports):** `YYYY-MM-DD_progress.pdf`
     * **Filename convention (technical):** `short_description.pdf`
