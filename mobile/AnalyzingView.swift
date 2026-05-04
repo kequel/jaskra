@@ -98,11 +98,6 @@ struct AnalyzingView: View {
                             .foregroundStyle(Color.accentCyan)
                             .frame(width: 24, alignment: .leading)
                     }
-
-                    Text(stepDescription(vm.analysisStep))
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color.textSecondary)
-                        .animation(.easeInOut(duration: 0.3), value: vm.analysisStep)
                 }
 
                 // Progress steps — driven by real backend steps
@@ -133,19 +128,6 @@ struct AnalyzingView: View {
         }
         .onReceive(timer) { _ in
             dots = (dots + 1) % 4
-        }
-    }
-
-    // Human-readable description for each backend step
-    private func stepDescription(_ step: Int) -> String {
-        switch step {
-        case 0:  return "Łączenie z serwerem..."
-        case 1:  return "Obraz odebrany — inicjalizacja modeli"
-        case 2:  return "Ładowanie modeli AI (YOLO i UNet)"
-        case 3:  return "Model AI przetwarza obraz dna oka"
-        case 4:  return "Nakładanie masek segmentacji"
-        case 5:  return "Analiza zakończona pomyślnie"
-        default: return "Przetwarzanie..."
         }
     }
 }
