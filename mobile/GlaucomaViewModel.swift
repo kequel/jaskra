@@ -7,12 +7,21 @@ class GlaucomaViewModel: ObservableObject {
     @Published var selectedImage: UIImage?
     @Published var showPicker = false
 
+    /// Current backend step (1–5), drives AnalyzingView progress
+    @Published var analysisStep: Int = 0
+
     func runAnalysis() {
         guard let image = selectedImage else { return }
+        analysisStep = 0
         screen = .analyzing
         Task {
             do {
-                let result = try await GlaucomaService.shared.analyze(image: image)
+                let result = try await GlaucomaService.shared.analyzeStreaming(
+                    image: image,
+                    onStep: { [weak self] step in
+                        self?.analysisStep = step
+                    }
+                )
                 screen = .result(result)
             } catch {
                 screen = .error(error.localizedDescription)
@@ -22,6 +31,7 @@ class GlaucomaViewModel: ObservableObject {
 
     func reset() {
         selectedImage = nil
+        analysisStep = 0
         screen = .home
     }
 
