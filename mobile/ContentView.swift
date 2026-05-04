@@ -14,7 +14,7 @@ struct ContentView: View {
                     .transition(.opacity)
 
             case .analyzing:
-                AnalyzingView()
+                AnalyzingView(vm: vm)
                     .transition(.opacity)
 
             case .result(let result):
@@ -29,7 +29,6 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.35), value: screenKey)
     }
 
-    // helper for animation value
     private var screenKey: String {
         switch vm.screen {
         case .home:      return "home"
