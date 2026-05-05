@@ -35,6 +35,11 @@ jobs:
               - any-glob-to-any-file:
                 - 'mobile/**'
 
+          tests:
+            - changed-files:
+              - any-glob-to-any-file:
+                - 'tests/**'
+
           hardware:
             - changed-files:
               - any-glob-to-any-file:
