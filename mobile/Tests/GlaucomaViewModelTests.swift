@@ -10,70 +10,70 @@ final class GlaucomaViewModelTests: XCTestCase {
     
     override func setUp() {
         super.setUp()
-        // Initialize before each test
         viewModel = GlaucomaViewModel()
     }
     
     override func tearDown() {
-        // Clean up after each test
         viewModel = nil
         super.tearDown()
     }
     
-    // MARK: - Tests
+    // MARK: - Risk Text Tests
     
-    /// Test plan:
-    /// - Verify that riskText returns correct string for negative case (CDR < 0.4)
     func test_RiskText_NegativeCase_ReturnsLow() {
-        let result = viewModel.riskText(cdr: 0.3)
-        XCTAssertEqual(result, "NISKIE", "CDR below 0.4 should return negative (NISKIE) classification")
+        XCTAssertEqual(viewModel.riskText(cdr: 0.3), "NISKIE", "CDR below 0.4 should return negative (NISKIE)")
+        XCTAssertEqual(viewModel.riskText(cdr: 0.0), "NISKIE", "CDR at edge 0.0 should return negative (NISKIE)")
     }
     
-    /// Test plan:
-    /// - Verify that riskText returns correct string for moderate case (0.4 <= CDR < 0.6)
+    func test_RiskText_BoundaryLow_ReturnsModerate() {
+        XCTAssertEqual(viewModel.riskText(cdr: 0.4), "UMIARKOWANE", "CDR at exactly 0.4 should return moderate (UMIARKOWANE)")
+    }
+    
     func test_RiskText_ModerateCase_ReturnsModerate() {
-        let result = viewModel.riskText(cdr: 0.5)
-        XCTAssertEqual(result, "UMIARKOWANE", "CDR between 0.4 and 0.6 should return moderate (UMIARKOWANE) classification")
+        XCTAssertEqual(viewModel.riskText(cdr: 0.5), "UMIARKOWANE", "CDR between 0.4 and 0.6 should return moderate (UMIARKOWANE)")
     }
     
-    /// Test plan:
-    /// - Verify that riskText returns correct string for positive case (CDR >= 0.6)
+    func test_RiskText_BoundaryHigh_ReturnsHigh() {
+        XCTAssertEqual(viewModel.riskText(cdr: 0.6), "WYSOKIE", "CDR at exactly 0.6 should return positive (WYSOKIE)")
+    }
+    
     func test_RiskText_PositiveCase_ReturnsHigh() {
-        let result = viewModel.riskText(cdr: 0.7)
-        XCTAssertEqual(result, "WYSOKIE", "CDR above 0.6 should return positive (WYSOKIE) classification")
+        XCTAssertEqual(viewModel.riskText(cdr: 0.7), "WYSOKIE", "CDR above 0.6 should return positive (WYSOKIE)")
+        XCTAssertEqual(viewModel.riskText(cdr: 1.0), "WYSOKIE", "CDR at edge 1.0 should return positive (WYSOKIE)")
     }
     
-    /// Test plan:
-    /// - Verify riskColor returns positiveGreen for negative case
+    // MARK: - Risk Color Tests
+    
     func test_RiskColor_NegativeCase_ReturnsPositiveGreen() {
-        let result = viewModel.riskColor(cdr: 0.3)
-        XCTAssertEqual(result, .positiveGreen, "Low risk should return positiveGreen color")
+        XCTAssertEqual(viewModel.riskColor(cdr: 0.3), .positiveGreen, "Low risk should return positiveGreen color")
+        XCTAssertEqual(viewModel.riskColor(cdr: 0.0), .positiveGreen, "Edge 0.0 should return positiveGreen color")
     }
     
-    /// Test plan:
-    /// - Verify riskColor returns warningAmber for moderate case
+    func test_RiskColor_BoundaryLow_ReturnsWarningAmber() {
+        XCTAssertEqual(viewModel.riskColor(cdr: 0.4), .warningAmber, "CDR exactly 0.4 should return warningAmber color")
+    }
+    
     func test_RiskColor_ModerateCase_ReturnsWarningAmber() {
-        let result = viewModel.riskColor(cdr: 0.5)
-        XCTAssertEqual(result, .warningAmber, "Moderate risk should return warningAmber color")
+        XCTAssertEqual(viewModel.riskColor(cdr: 0.5), .warningAmber, "Moderate risk should return warningAmber color")
     }
     
-    /// Test plan:
-    /// - Verify riskColor returns dangerRed for positive case
+    func test_RiskColor_BoundaryHigh_ReturnsDangerRed() {
+        XCTAssertEqual(viewModel.riskColor(cdr: 0.6), .dangerRed, "CDR exactly 0.6 should return dangerRed color")
+    }
+    
     func test_RiskColor_PositiveCase_ReturnsDangerRed() {
-        let result = viewModel.riskColor(cdr: 0.7)
-        XCTAssertEqual(result, .dangerRed, "High risk should return dangerRed color")
+        XCTAssertEqual(viewModel.riskColor(cdr: 0.7), .dangerRed, "High risk should return dangerRed color")
+        XCTAssertEqual(viewModel.riskColor(cdr: 1.0), .dangerRed, "Edge 1.0 should return dangerRed color")
     }
     
-    /// Test plan:
-    /// - Verify initial state of ViewModel variables
+    // MARK: - State & Reset Tests
+    
     func test_InitialState_IsCorrect() {
         XCTAssertNil(viewModel.selectedImage, "Selected image should be nil on init")
         XCTAssertEqual(viewModel.analysisStep, 0, "Analysis step should be 0 on init")
         XCTAssertFalse(viewModel.showPicker, "Show picker should be false on init")
     }
     
-    /// Test plan:
-    /// - Verify reset function clears state back to defaults
     func test_Reset_ClearsState() {
         // Given
         viewModel.selectedImage = UIImage()
@@ -82,7 +82,7 @@ final class GlaucomaViewModelTests: XCTestCase {
         // When
         viewModel.reset()
         
-        // Then
+        // Then - We only assert properties that are explicitly handled by reset() in the current implementation
         XCTAssertNil(viewModel.selectedImage, "Selected image should be nil after reset")
         XCTAssertEqual(viewModel.analysisStep, 0, "Analysis step should be reset to 0")
     }
