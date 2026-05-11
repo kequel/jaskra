@@ -1,9 +1,9 @@
 """
 ═══════════════════════════════════════════════════════════════════════════
-U-Net++ TRAINING — VERSION 4.0 (TRAINING FROM SCRATCH, TARGET: 95%+)
+U-Net++ TRAINING — VERSION 5.0 (MULTI-FORMAT DATASET SUPPORT)
 ═══════════════════════════════════════════════════════════════════════════
 
-ALL IMPROVEMENTS:
+ALL IMPROVEMENTS (v5.0 on top of v4.0):
   ✓ Two separate dataset instances (val transform bug fix)
   ✓ Dice metric separately for disc and cup
   ✓ weighted_dice_focal — cup has 2x weight (smaller, harder)
@@ -15,13 +15,34 @@ ALL IMPROVEMENTS:
   ✓ CLAHE + fundus-specific augmentations
   ✓ Fixed GaussNoise and ShiftScaleRotate (no deprecation warnings)
   ✓ Morphological post-processing (function ready for predict.py)
+  ✓ [NEW] Support for two dataset layouts (see DATA LAYOUTS below)
+  ✓ [NEW] Automatic resize — images don't have to be 512×512
 
-MASKS: 0=background, 1=disc, 2=cup
+DATA LAYOUTS SUPPORTED:
+──────────────────────────────────────────────────────────────────────────
+
+  Layout A — separate masks:
+    full/          ← original eye images (.jpg / .png)
+    masks/
+      cup/         ← binary mask: <stem>_cup.png   (255 = cup)
+      disc/        ← binary mask: <stem>_disc.png  (255 = disc)
+
+  Layout B — merged mask (original / legacy):
+    full2/         ← original eye images (.jpg / .png)
+    masks2/        ← single grayscale mask: <stem>.png
+                      pixel value 0 = background
+                      pixel value 1 = disc
+                      pixel value 2 = cup
+
+  You can mix both layouts — just configure all four paths.
+  If a path is None / empty the layout is skipped.
+
+MASKS (internal representation): 0=background, 1=disc, 2=cup
 ═══════════════════════════════════════════════════════════════════════════
 """
 
 import torch
-from torch.utils.data import Dataset, DataLoader, Subset
+from torch.utils.data import Dataset, DataLoader, Subset, ConcatDataset
 import segmentation_models_pytorch as smp
 import cv2
 import numpy as np
@@ -36,18 +57,27 @@ import random
 # CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════
 
-IMAGES_DIR = "/content/drive/MyDrive/Images_Cropped/img"
-MASKS_DIR  = "/content/drive/MyDrive/Masks_C/img"
-SAVE_DIR   = "/content/drive/MyDrive/glaucoma_project/models"
+# ── Layout A  (single masks folder, files: <stem>_cup.png / <stem>_disc.png)
+# Set to None to disable this layout.
+IMAGES_DIR_A = "../../../../data/full"   # images
+MASKS_DIR_A  = "../../../../data/Masks"  # <stem>_cup.png + <stem>_disc.png
 
-EPOCHS                  = 100   # more epochs — early stopping will halt when needed
-BATCH_SIZE              = 4     # T4 + AMP + UNet++ 512px
+# ── Layout B  (merged mask: 0=bg, 1=disc, 2=cup) ──────────────────────────
+# Set to None to disable this layout.
+IMAGES_DIR_B   = "../../../../data/full2"     # images
+MASKS_DIR_B    = "../../../../data/Masks2"    # <stem>.png
+
+# ── General ───────────────────────────────────────────────────────────────
+SAVE_DIR   = "models"
+
+EPOCHS                  = 100
+BATCH_SIZE              = 4       # T4 + AMP + UNet++ 512px
 IMAGE_SIZE              = 512
 LEARNING_RATE           = 0.0001
-WARMUP_EPOCHS           = 5     # 5 epochs of linear warmup
-EARLY_STOPPING_PATIENCE = 20    # stop after 20 epochs without improvement
+WARMUP_EPOCHS           = 5
+EARLY_STOPPING_PATIENCE = 20
 ENCODER                 = "efficientnet-b4"
-PRETRAINED_PATH         = None  # training from scratch with ImageNet weights
+PRETRAINED_PATH         = None    # path to .pth file to fine-tune, or None
 USE_KFOLD               = False
 N_FOLDS                 = 5
 # "weighted_dice_focal" = cup 2x more important (RECOMMENDED)
@@ -64,10 +94,33 @@ print(f"Pretrained:     {'Fine-tuning: ' + PRETRAINED_PATH if PRETRAINED_PATH el
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# DATASET
+# MASK FILE HELPERS  (shared by both layouts)
 # ═══════════════════════════════════════════════════════════════════════════
 
-class GlaucomaDataset(Dataset):
+_MASK_EXTS = [".png", ".bmp", ".tif", ".tiff"]
+
+def _find_mask(masks_dir: Path, stem: str):
+    """Return the first existing mask file for *stem* (any supported extension), or None."""
+    for ext in _MASK_EXTS:
+        p = masks_dir / f"{stem}{ext}"
+        if p.exists():
+            return p
+    return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DATASET — LAYOUT A  (separate cup/disc masks)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class GlaucomaDatasetSeparateMasks(Dataset):
+    """
+    Folder structure:
+        images_dir/  ← <stem>.jpg / .png / .tif / …
+        masks_dir/   ← <stem>_cup.png   (binary, 255 = cup region)
+                       <stem>_disc.png  (binary, 255 = disc region)
+                       (both files live in the SAME folder)
+    """
+
     def __init__(self, images_dir, masks_dir, transform=None):
         self.images_dir = Path(images_dir)
         self.masks_dir  = Path(masks_dir)
@@ -75,43 +128,233 @@ class GlaucomaDataset(Dataset):
 
         self.image_files = sorted(
             list(self.images_dir.glob("*.jpg")) +
-            list(self.images_dir.glob("*.png"))
+            list(self.images_dir.glob("*.JPG")) +
+            list(self.images_dir.glob("*.jpeg")) +
+            list(self.images_dir.glob("*.png")) +
+            list(self.images_dir.glob("*.bmp")) +
+            list(self.images_dir.glob("*.tif")) +
+            list(self.images_dir.glob("*.tiff"))
         )
         if not self.image_files:
             raise ValueError(f"No images found in {images_dir}!")
-        print(f"  Found {len(self.image_files)} images")
 
-        missing = [f.name for f in self.image_files[:10]
-                   if not (self.masks_dir / f"{f.stem}.png").exists()]
+        # Keep only samples that have BOTH masks in the shared folder
+        valid = []
+        missing = []
+        for f in self.image_files:
+            cup_path  = _find_mask(self.masks_dir, f"{f.stem}_cup")
+            disc_path = _find_mask(self.masks_dir, f"{f.stem}_disc")
+            if cup_path is not None and disc_path is not None:
+                valid.append(f)
+            else:
+                missing.append(f.name)
+
         if missing:
-            print(f"  WARNING: Missing masks for: {missing}")
+            print(f"  [Layout A] WARNING: {len(missing)} image(s) skipped "
+                  f"(missing _cup/_disc mask): {missing[:5]}"
+                  f"{'...' if len(missing) > 5 else ''}")
+
+        self.image_files = valid
+        print(f"  [Layout A] {len(self.image_files)} valid samples "
+              f"(images + _cup + _disc masks)")
 
     def __len__(self):
         return len(self.image_files)
 
     def __getitem__(self, idx):
-        img_path = self.image_files[idx]
-        image    = cv2.cvtColor(cv2.imread(str(img_path)), cv2.COLOR_BGR2RGB)
+        img_path  = self.image_files[idx]
+        image     = cv2.cvtColor(cv2.imread(str(img_path)), cv2.COLOR_BGR2RGB)
 
-        mask_path = self.masks_dir / f"{img_path.stem}.png"
-        if not mask_path.exists():
-            raise FileNotFoundError(f"Missing mask: {mask_path}")
-        mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
+        cup_path  = _find_mask(self.masks_dir, f"{img_path.stem}_cup")
+        disc_path = _find_mask(self.masks_dir, f"{img_path.stem}_disc")
+
+        cup_mask  = cv2.imread(str(cup_path),  cv2.IMREAD_GRAYSCALE)
+        disc_mask = cv2.imread(str(disc_path), cv2.IMREAD_GRAYSCALE)
+
+        # Build combined mask: 0=bg, 1=disc, 2=cup
+        # Disc first, then cup overwrites (cup ⊂ disc anatomically)
+        h, w  = image.shape[:2]
+        mask  = np.zeros((h, w), dtype=np.uint8)
+        mask[disc_mask > 127] = 1
+        mask[cup_mask  > 127] = 2
 
         if self.transform:
             out   = self.transform(image=image, mask=mask)
             image = out['image']
             mask  = out['mask']
 
-        # Masks 0/1/2 → two binary channels
-        if not isinstance(mask, torch.Tensor):
-            mask = torch.tensor(mask, dtype=torch.float32)
+        return image, _mask_to_tensor(mask)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MASK FORMAT AUTO-DETECTION & NORMALISATION
+# ═══════════════════════════════════════════════════════════════════════════
+
+def normalize_merged_mask(mask: np.ndarray) -> np.ndarray:
+    """
+    Accepts two mask formats and returns a normalised mask: 0=bg, 1=disc, 2=cup.
+
+    Format A — standard (already normalised):
+        pixel values: {0, 1, 2}   →  returned as-is
+
+    Format B — visual grayscale (e.g. exported from image editors):
+        white  (> 200)  = background   → 0
+        gray   (50-200) = disc          → 1
+        black  (< 50)   = cup           → 2
+
+    Detection rule: if max(mask) > 2 we assume Format B.
+    """
+    if mask.max() <= 2:
+        return mask  # already in standard format
+
+    # ── Format B: remap visual grayscale → 0/1/2 ──────────────────────────
+    out = np.zeros_like(mask, dtype=np.uint8)
+    out[mask > 200]               = 0   # white  → background
+    out[(mask >= 50) & (mask <= 200)] = 1   # gray   → disc
+    out[mask < 50]                = 2   # black  → cup
+    return out
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DATASET — LAYOUT B  (merged mask: 0=bg, 1=disc, 2=cup)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class GlaucomaDatasetMergedMask(Dataset):
+    """
+    Folder structure:
+        images_dir/  ← <stem>.jpg or <stem>.png
+        masks_dir/   ← <stem>.png  (grayscale: 0=bg, 1=disc, 2=cup)
+    """
+
+    def __init__(self, images_dir, masks_dir, transform=None):
+        self.images_dir = Path(images_dir)
+        self.masks_dir  = Path(masks_dir)
+        self.transform  = transform
+
+        self.image_files = sorted(
+            list(self.images_dir.glob("*.jpg")) +
+            list(self.images_dir.glob("*.JPG")) +
+            list(self.images_dir.glob("*.jpeg")) +
+            list(self.images_dir.glob("*.png")) +
+            list(self.images_dir.glob("*.bmp")) +
+            list(self.images_dir.glob("*.tif")) +
+            list(self.images_dir.glob("*.tiff"))
+        )
+        if not self.image_files:
+            raise ValueError(f"No images found in {images_dir}!")
+
+        # Keep only samples that have a matching mask (any supported extension)
+        valid   = []
+        missing = []
+        for f in self.image_files:
+            mask_path = _find_mask(self.masks_dir, f.stem)
+            if mask_path is not None:
+                valid.append(f)
+            else:
+                missing.append(f.name)
+
+        if missing:
+            print(f"  [Layout B] WARNING: {len(missing)} image(s) skipped "
+                  f"(no mask): {missing[:5]}"
+                  f"{'...' if len(missing) > 5 else ''}")
+
+        self.image_files = valid
+        print(f"  [Layout B] {len(self.image_files)} valid samples "
+              f"(images + merged mask)")
+
+    def __len__(self):
+        return len(self.image_files)
+
+    def __getitem__(self, idx):
+        img_path  = self.image_files[idx]
+        image     = cv2.cvtColor(cv2.imread(str(img_path)), cv2.COLOR_BGR2RGB)
+
+        mask_path = _find_mask(self.masks_dir, img_path.stem)
+        if mask_path is None:
+            raise FileNotFoundError(f"Missing mask for: {img_path.name}")
+        mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
+        mask = normalize_merged_mask(mask)
+
+        if self.transform:
+            out   = self.transform(image=image, mask=mask)
+            image = out['image']
+            mask  = out['mask']
+
+        return image, _mask_to_tensor(mask)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SHARED MASK → TENSOR HELPER
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _mask_to_tensor(mask):
+    """
+    Converts a combined mask (0=bg, 1=disc, 2=cup) — either np.ndarray or
+    torch.Tensor — into two binary channels:
+        channel 0 → disc  (pixels == 1)
+        channel 1 → cup   (pixels == 2)
+    """
+    if not isinstance(mask, torch.Tensor):
+        mask = torch.tensor(mask, dtype=torch.long)
+    else:
         mask = torch.round(mask.float()).long()
 
-        return image, torch.stack([
-            (mask == 1).float(),   # channel 0: disc
-            (mask == 2).float()    # channel 1: cup
-        ], dim=0)
+    return torch.stack([
+        (mask == 1).float(),   # channel 0: disc
+        (mask == 2).float(),   # channel 1: cup
+    ], dim=0)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# BUILD THE COMBINED DATASET (both layouts together)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def build_datasets(train_transform, val_transform):
+    """
+    Returns a pair (train_ds, val_ds) combining all enabled layouts.
+    Each layout is instantiated TWICE (once per transform) to avoid the
+    val-transform bug where both splits share the same augmentation object.
+    """
+    train_parts = []
+    val_parts   = []
+
+    # ── Layout A ──────────────────────────────────────────────────────────
+    if IMAGES_DIR_A and MASKS_DIR_A:
+        p = Path(IMAGES_DIR_A)
+        if p.exists():
+            print("\n[Layout A] Loading separate-mask dataset …")
+            train_parts.append(GlaucomaDatasetSeparateMasks(
+                IMAGES_DIR_A, MASKS_DIR_A,
+                transform=train_transform))
+            val_parts.append(GlaucomaDatasetSeparateMasks(
+                IMAGES_DIR_A, MASKS_DIR_A,
+                transform=val_transform))
+        else:
+            print(f"[Layout A] Skipped — path not found: {IMAGES_DIR_A}")
+
+    # ── Layout B ──────────────────────────────────────────────────────────
+    if IMAGES_DIR_B and MASKS_DIR_B:
+        p = Path(IMAGES_DIR_B)
+        if p.exists():
+            print("\n[Layout B] Loading merged-mask dataset …")
+            train_parts.append(GlaucomaDatasetMergedMask(
+                IMAGES_DIR_B, MASKS_DIR_B,
+                transform=train_transform))
+            val_parts.append(GlaucomaDatasetMergedMask(
+                IMAGES_DIR_B, MASKS_DIR_B,
+                transform=val_transform))
+        else:
+            print(f"[Layout B] Skipped — path not found: {IMAGES_DIR_B}")
+
+    if not train_parts:
+        raise RuntimeError("No dataset could be loaded! "
+                           "Check IMAGES_DIR_A / IMAGES_DIR_B paths.")
+
+    # ConcatDataset merges multiple datasets transparently
+    if len(train_parts) == 1:
+        return train_parts[0], val_parts[0]
+
+    return ConcatDataset(train_parts), ConcatDataset(val_parts)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -120,20 +363,19 @@ class GlaucomaDataset(Dataset):
 
 def get_train_transforms():
     return A.Compose([
+        # Resize handles any input resolution → always outputs IMAGE_SIZE×IMAGE_SIZE
         A.Resize(IMAGE_SIZE, IMAGE_SIZE),
 
         # ── Geometric ─────────────────────────────────────────────────────
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.3),
         A.Rotate(limit=20, p=0.5),
-        # Affine instead of ShiftScaleRotate (newer API, no warning)
         A.Affine(
             translate_percent={"x": (-0.1, 0.1), "y": (-0.1, 0.1)},
             scale=(0.9, 1.1),
             rotate=(-15, 15),
             p=0.5
         ),
-        # Simulates natural variability in eyeball shape
         A.ElasticTransform(alpha=30, sigma=5, p=0.3),
 
         # ── General photometric ───────────────────────────────────────────
@@ -142,7 +384,6 @@ def get_train_transforms():
         A.HueSaturationValue(hue_shift_limit=10,
                              sat_shift_limit=20,
                              val_shift_limit=10, p=0.3),
-        # Fixed GaussNoise (var_limit instead of std_dev)
         A.GaussNoise(var_limit=(0.0, 0.001), p=0.3),
 
         # ── Fundus-specific ───────────────────────────────────────────────
@@ -224,31 +465,21 @@ def build_criterion(loss_type):
 # SCHEDULER — Linear Warmup + Cosine Annealing
 # ═══════════════════════════════════════════════════════════════════════════
 
-def build_scheduler(optimizer, epochs, warmup_epochs):
+def build_scheduler(optimizer, epochs, steps_per_epoch):
     """
-    Warmup: LR grows linearly from 1% → 100% for the first warmup_epochs.
-    Goal: protects pretrained encoder weights against overly aggressive
-    gradients at the beginning of training.
+    OneCycleLR combines warmup and cosine annealing smoothly and updates
+    every batch instead of every epoch. It increases LR to max_lr, then
+    anneals it down. Supports differential learning rates natively.
+    """
+    max_lrs = [group['lr'] for group in optimizer.param_groups]
 
-    Cosine Annealing: LR drops in a cosine shape down to 1e-6.
-    Effect: large steps at the beginning (exploration) → precise at the end.
-    """
-    if warmup_epochs > 0:
-        warmup = torch.optim.lr_scheduler.LinearLR(
-            optimizer, start_factor=0.01, end_factor=1.0,
-            total_iters=warmup_epochs
-        )
-        cosine = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=max(1, epochs - warmup_epochs), eta_min=1e-6
-        )
-        return torch.optim.lr_scheduler.SequentialLR(
-            optimizer, schedulers=[warmup, cosine],
-            milestones=[warmup_epochs]
-        )
-    else:
-        return torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=epochs, eta_min=1e-6
-        )
+    return torch.optim.lr_scheduler.OneCycleLR(
+        optimizer,
+        max_lr=max_lrs,
+        epochs=epochs,
+        steps_per_epoch=steps_per_epoch,
+        pct_start=0.1,  # 10% of training spent warming up
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -289,7 +520,7 @@ def morphological_postprocess(pred_disc_np, pred_cup_np):
         return m.astype(np.float32)
 
     disc = clean(pred_disc_np)
-    cup  = clean(pred_cup_np) * disc   # cup only where disc is present
+    cup  = clean(pred_cup_np) * disc
     return disc, cup
 
 
@@ -297,7 +528,7 @@ def morphological_postprocess(pred_disc_np, pred_cup_np):
 # TRAINING LOOPS
 # ═══════════════════════════════════════════════════════════════════════════
 
-def train_epoch(model, loader, criterion, optimizer, scaler, device):
+def train_epoch(model, loader, criterion, optimizer, scheduler, scaler, device):
     model.train()
     tot_loss = tot_disc = tot_cup = 0.0
     use_amp  = (device == 'cuda')
@@ -316,6 +547,7 @@ def train_epoch(model, loader, criterion, optimizer, scaler, device):
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         scaler.step(optimizer)
         scaler.update()
+        scheduler.step()
 
         d, c, _ = dice_scores(out, masks)
         tot_loss += loss.item(); tot_disc += d; tot_cup += c
@@ -391,7 +623,7 @@ def train_single_model(train_idx, val_idx, train_ds, val_ds,
     ], weight_decay=1e-5)
 
     criterion = build_criterion(LOSS_TYPE)
-    scheduler = build_scheduler(optimizer, epochs, WARMUP_EPOCHS)
+    scheduler = build_scheduler(optimizer, epochs, len(train_loader))
     scaler    = torch.amp.GradScaler('cuda', enabled=(DEVICE == 'cuda'))
 
     best_dice      = 0.0
@@ -404,11 +636,9 @@ def train_single_model(train_idx, val_idx, train_ds, val_ds,
         print("-" * 65)
 
         tr_loss, tr_disc, tr_cup = train_epoch(
-            model, train_loader, criterion, optimizer, scaler, DEVICE)
+            model, train_loader, criterion, optimizer, scheduler, scaler, DEVICE)
         va_loss, va_disc, va_cup = validate(
             model, val_loader, criterion, DEVICE)
-
-        scheduler.step()
 
         tr_mean = (tr_disc + tr_cup) / 2.0
         va_mean = (va_disc + va_cup) / 2.0
@@ -454,19 +684,21 @@ def main():
     torch.cuda.empty_cache()
 
     print("=" * 65)
-    print("U-Net++ v4.0  |  Target: Disc ≥ 93%  Cup ≥ 88%  Avg ≥ 90%")
+    print("U-Net++ v5.0  |  Target: Disc ≥ 93%  Cup ≥ 88%  Avg ≥ 90%")
     print("=" * 65)
 
     Path(SAVE_DIR).mkdir(parents=True, exist_ok=True)
 
     print("\nLoading data...")
-    # CRITICAL: two SEPARATE instances — each has its own transform
-    train_ds = GlaucomaDataset(IMAGES_DIR, MASKS_DIR,
-                               transform=get_train_transforms())
-    val_ds   = GlaucomaDataset(IMAGES_DIR, MASKS_DIR,
-                               transform=get_val_transforms())
+    # CRITICAL: build_datasets creates SEPARATE instances per transform
+    # so validation always uses val_transforms (no augmentation leakage)
+    train_ds, val_ds = build_datasets(
+        get_train_transforms(), get_val_transforms()
+    )
 
-    all_idx = list(range(len(train_ds)))
+    total = len(train_ds)
+    print(f"\n  Total samples across all layouts: {total}")
+    all_idx = list(range(total))
 
     if not USE_KFOLD:
         # ── Single 80/20 split ────────────────────────────────────────────
@@ -482,13 +714,13 @@ def main():
 
         best = train_single_model(
             train_idx, val_idx, train_ds, val_ds,
-            save_name="unetpp_best_v4", epochs=EPOCHS
+            save_name="unetpp_best_v5", epochs=EPOCHS
         )
 
         print("\n" + "=" * 65)
         print("TRAINING COMPLETED!")
         print(f"Best Val Dice (average): {best:.4f} ({best*100:.1f}%)")
-        print(f"Model: {SAVE_DIR}/unetpp_best_v4.pth")
+        print(f"Model: {SAVE_DIR}/unetpp_best_v5.pth")
         if best >= 0.90:
             print("✓ 90% target achieved!")
         else:
@@ -510,7 +742,7 @@ def main():
             print("=" * 65)
             best = train_single_model(
                 tr.tolist(), va.tolist(), train_ds, val_ds,
-                save_name=f"unetpp_v4_fold{fold}", epochs=EPOCHS
+                save_name=f"unetpp_v5_fold{fold}", epochs=EPOCHS
             )
             results.append(best)
             print(f"Fold {fold} Best: {best:.4f}")
