@@ -40,6 +40,11 @@ let package = Package(
             swiftSettings: [
                 .enableUpcomingFeature("BareSlashRegexLiterals")
             ]
+        ),
+        .testTarget(
+            name: "AppModuleTests",
+            dependencies: ["AppModule"],
+            path: "Tests"
         )
     ]
 )
