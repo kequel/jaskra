@@ -9,9 +9,6 @@ from pathlib import Path
 
 from tests.base_test import BaseTest
 
-# -------------------------------------------------------------------------
-# DYNAMICZNE ŁADOWANIE MODUŁU ZE SPACJĄ W NAZWIE
-# -------------------------------------------------------------------------
 file_path = Path("ai/unet/Model Training.py")
 spec = importlib.util.spec_from_file_location("model_training", file_path)
 model_training = importlib.util.module_from_spec(spec)
