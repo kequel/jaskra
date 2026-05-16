@@ -9,9 +9,6 @@ from pathlib import Path
 
 from tests.base_test import BaseTest
 
-# -------------------------------------------------------------------------
-# DYNAMICZNE ŁADOWANIE MODUŁU ZE SPACJĄ W NAZWIE
-# -------------------------------------------------------------------------
 file_path = Path("ai/unet/Model Training.py")
 spec = importlib.util.spec_from_file_location("model_training", file_path)
 model_training = importlib.util.module_from_spec(spec)
@@ -95,7 +92,7 @@ class TestUNetTraining(BaseTest):
         targets = torch.tensor([[[[1.0, 1.0], [0.0, 0.0]], 
                                  [[1.0, 1.0], [0.0, 0.0]]]])
         
-        d_score, c_score, mean_score = model_training.dice_scores(logits, targets)
+        d_score, c_score, _mean_score = model_training.dice_scores(logits, targets)
         
         assert abs(d_score - 1.0) < 1e-4
         assert abs(c_score - 0.6666) < 1e-3
@@ -197,11 +194,10 @@ class TestUNetTraining(BaseTest):
             criterion = model_training.build_criterion(loss_type)
             assert criterion is not None
             
-            if loss_type != "tversky":
-                dummy_out = torch.randn(2, 2, 10, 10)
-                dummy_mask = torch.randint(0, 2, (2, 2, 10, 10)).float()
-                loss_val = criterion(dummy_out, dummy_mask)
-                assert isinstance(loss_val, torch.Tensor)
+            dummy_out = torch.randn(2, 2, 10, 10)
+            dummy_mask = torch.randint(0, 2, (2, 2, 10, 10)).float()
+            loss_val = criterion(dummy_out, dummy_mask)
+            assert isinstance(loss_val, torch.Tensor)
 
     def test_build_scheduler(self):
         """
@@ -241,29 +237,29 @@ class TestUNetTraining(BaseTest):
             orig_img_b = model_training.IMAGES_DIR_B
             orig_mask_b = model_training.MASKS_DIR_B
 
-            # 1. Test standard combine success
-            model_training.IMAGES_DIR_A = img_dir
-            model_training.MASKS_DIR_A = mask_dir
-            model_training.IMAGES_DIR_B = img_dir
-            model_training.MASKS_DIR_B = mask_dir
+            try:
+                model_training.IMAGES_DIR_A = img_dir
+                model_training.MASKS_DIR_A = mask_dir
+                model_training.IMAGES_DIR_B = img_dir
+                model_training.MASKS_DIR_B = mask_dir
 
-            train_tf = model_training.get_train_transforms()
-            val_tf = model_training.get_val_transforms()
-            train_ds, val_ds = model_training.build_datasets(train_tf, val_tf)
-            assert train_ds is not None
+                train_tf = model_training.get_train_transforms()
+                val_tf = model_training.get_val_transforms()
+                train_ds, _ = model_training.build_datasets(train_tf, val_tf)
+                assert train_ds is not None
 
-            # 2. Trigger the "Skipped — path not found" else branches for coverage
-            model_training.IMAGES_DIR_A = "non_existent_path_a"
-            model_training.IMAGES_DIR_B = "non_existent_path_b"
-            
-            with pytest.raises(RuntimeError):
-                model_training.build_datasets(train_tf, val_tf)
+                # 2. Trigger the "Skipped - path not found" else branches for coverage
+                model_training.IMAGES_DIR_A = "non_existent_path_a"
+                model_training.IMAGES_DIR_B = "non_existent_path_b"
+                
+                with pytest.raises(RuntimeError):
+                    model_training.build_datasets(train_tf, val_tf)
 
-            # Restore
-            model_training.IMAGES_DIR_A = orig_img_a
-            model_training.MASKS_DIR_A = orig_mask_a
-            model_training.IMAGES_DIR_B = orig_img_b
-            model_training.MASKS_DIR_B = orig_mask_b
+            finally:
+                model_training.IMAGES_DIR_A = orig_img_a
+                model_training.MASKS_DIR_A = orig_mask_a
+                model_training.IMAGES_DIR_B = orig_img_b
+                model_training.MASKS_DIR_B = orig_mask_b
 
     def test_datasets_warnings_and_failures(self):
         """
@@ -279,19 +275,15 @@ class TestUNetTraining(BaseTest):
             os.makedirs(img_dir)
             os.makedirs(mask_dir)
 
-            # 1. Create an image with NO mask to trigger the "WARNING: image(s) skipped" during initialization
             cv2.imwrite(os.path.join(img_dir, "skipped_eye.png"), np.zeros((10, 10, 3), dtype=np.uint8))
             
-            # 2. Create a valid image that WILL have a mask initially
             cv2.imwrite(os.path.join(img_dir, "broken_sample.png"), np.zeros((10, 10, 3), dtype=np.uint8))
             mask_path = os.path.join(mask_dir, "broken_sample.png")
             cv2.imwrite(mask_path, np.zeros((10, 10), dtype=np.uint8))
 
-            # Initialize datasets (hits the init validation warning logs)
             dataset_merged = model_training.GlaucomaDatasetMergedMask(img_dir, mask_dir)
-            dataset_separate = model_training.GlaucomaDatasetSeparateMasks(img_dir, mask_dir)
+            _ = model_training.GlaucomaDatasetSeparateMasks(img_dir, mask_dir)
             
-            # Delete the mask file from disk BEFORE calling __getitem__ to force the FileNotFoundError branch
             if os.path.exists(mask_path):
                 os.remove(mask_path)
                 
