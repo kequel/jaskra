@@ -12,8 +12,8 @@ PIPELINE_PATCH = "pipeline.pipeline.GlaucomaPipeline.run"
 
 class TestGlaucomaAPI(BaseTest):
     """
-    This class contains unit tests for the /analyze-glaucoma endpoint, 
-    focusing on the API's response structure and logic based on mocked pipeline outputs.
+    Unit tests for the POST /analyze-glaucoma endpoint.
+    Pipeline is mocked - verifies HTTP logic, response structure, and CDR threshold behavior.
     """
 
     @patch(PIPELINE_PATCH)
