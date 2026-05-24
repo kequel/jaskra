@@ -10,6 +10,7 @@ from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from PIL import Image
 from threading import Lock
+from dotenv import load_dotenv
 import io
 import base64
 import os
@@ -56,7 +57,12 @@ def get_db():
 # =========================================================
 # 2. IDENTITY & JWT BEARER TOKENS
 # =========================================================
-SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key-change-it-later")
+load_dotenv()
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("CRITICAL ERROR: SECRET_KEY environment variable is missing! Application stopped for security reasons.")
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440
 
