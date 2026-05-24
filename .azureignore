@@ -1,0 +1,17 @@
+.venv
+venv
+env
+__pycache__
+.git
+.pytest_cache
+htmlcov/
+.coverage
+ai/pipeline/data/images/*
+ai/pipeline/data/masks/*
+docs/
+.github/
+mobile/
+*.pdf
+*.md
+hardware/
+tests/

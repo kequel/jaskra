@@ -1,6 +1,12 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.concurrency import run_in_threadpool
+from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, ForeignKey, DateTime
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session
+from passlib.context import CryptContext
+from datetime import datetime, timedelta
 from PIL import Image
 import io
 import base64
@@ -11,208 +17,180 @@ import numpy as np
 import cv2
 import json
 import asyncio
+import jwt
+
+# =========================================================
+# 1. DATABASE CONFIGURATION (SQLite)
+# =========================================================
+SQLALCHEMY_DATABASE_URL = "sqlite:///./glaucoma_app.db"
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+
+class History(Base):
+    __tablename__ = "history"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    is_glaucoma = Column(Boolean)
+    cup_to_disc_ratio = Column(Float)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+Base.metadata.create_all(bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# =========================================================
+# 2. IDENTITY & JWT BEARER TOKENS
+# =========================================================
+SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key-change-it-later")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 1440 # Token valid for 24h
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# auto_error=False allows the streaming endpoint to work WITHOUT a token (for the old app)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login", auto_error=False) 
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            return None
+    except jwt.PyJWTError:
+        return None
+    user = db.query(User).filter(User.username == username).first()
+    return user
 
 app = FastAPI()
 
 # =========================================================
-# Endpoint 1: Standard JSON Response (Classic)
+# 3. IDENTITY ENDPOINTS
 # =========================================================
-@app.post("/analyze-glaucoma")
-async def analyze_glaucoma(file: UploadFile = File(...)):
-    # 1. Read the file sent by the iOS app
-    contents = await file.read()
-    image = Image.open(io.BytesIO(contents))
+@app.post("/register")
+def register_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.username == form_data.username).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Username already exists")
     
-    if image.mode != 'RGB':
-        image = image.convert('RGB')
-        
-    # =========================================================
-    # AI model invocation starts here
-    # =========================================================
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    root_dir = os.path.dirname(current_dir)
-    ai_dir = os.path.join(root_dir, 'ai')
+    hashed_password = get_password_hash(form_data.password)
+    new_user = User(username=form_data.username, hashed_password=hashed_password)
+    db.add(new_user)
+    db.commit()
+    return {"message": "Account created successfully!"}
+
+@app.post("/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
     
-    if ai_dir not in sys.path:
-        sys.path.append(ai_dir)
-        
-    from pipeline.pipeline import GlaucomaPipeline
+    access_token = create_access_token(data={"sub": user.username})
+    return {"access_token": access_token, "token_type": "bearer"}
 
-    # Global initialization
-    global glaucoma_pipeline
-    if 'glaucoma_pipeline' not in globals():
-        yolo_path = os.path.join(ai_dir, 'pipeline', 'models', 'best.pt')
-        unet_path = os.path.join(ai_dir, 'pipeline', 'models', 'unetpp_best.pth')
-        print("[*] Initializing AI models...")
-        glaucoma_pipeline = GlaucomaPipeline(yolo_path=yolo_path, unet_path=unet_path, device='cpu')
-
-    # Temporary file for pipeline
-    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-        tmp_path = tmp.name
-        image.save(tmp_path)
-
-    try:
-        result = glaucoma_pipeline.run(tmp_path)
-        
-        if result is not None:
-            _, _, _, cdr_val, _, _ = result
-            cup_to_disc_ratio = round(float(cdr_val), 2)
-            is_glaucoma = bool(cup_to_disc_ratio > 0.65)
-            confidence = 0.95 
-        else:
-            is_glaucoma = False
-            cup_to_disc_ratio = 0.0
-            confidence = 0.0
-            
-    finally:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
-
-    open_cv_image = np.array(image) 
-
-    # Applying masks to image safely
-    if result is not None:
-        full_img, crops, masks, cdr_val, _, _ = result
-        
-        # Added safety check for len(masks) as well
-        if len(crops) > 0 and len(masks) > 0 and len(masks[0]) >= 2: 
-            x1, y1, x2, y2 = crops[0]
-            disc_mask = masks[0][0] 
-            cup_mask = masks[0][1]  
-
-            roi = open_cv_image[y1:y2, x1:x2]
-            
-            roi_h, roi_w = roi.shape[:2]
-            disc_resized = cv2.resize(disc_mask, (roi_w, roi_h))
-            cup_resized = cv2.resize(cup_mask, (roi_w, roi_h))
-
-            roi[disc_resized > 0.5] = roi[disc_resized > 0.5] * 0.5 + np.array([0, 255, 0]) * 0.5
-            roi[cup_resized > 0.5] = roi[cup_resized > 0.5] * 0.5 + np.array([255, 0, 0]) * 0.5
-
-            open_cv_image[y1:y2, x1:x2] = roi
-
-    image = Image.fromarray(open_cv_image)
-
-    # =========================================================
-    # AI model invocation ends here
-    # =========================================================
+@app.get("/history")
+def get_user_history(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="You must be logged in to view history")
     
-    # 2. Encode the processed image to Base64
-    buffered = io.BytesIO()
-    image.save(buffered, format="JPEG")
-    img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
-    
-    # 3. Return the response to Swift in JSON format
-    return JSONResponse(content={
-        "has_glaucoma": is_glaucoma,
-        "confidence": confidence,
-        "cup_to_disc_ratio": cup_to_disc_ratio,
-        "image_base64": img_base64
-    })
+    records = db.query(History).filter(History.user_id == current_user.id).all()
+    return {"history": [{"id": r.id, "is_glaucoma": r.is_glaucoma, "cdr": r.cup_to_disc_ratio, "date": r.created_at} for r in records]}
 
 
 # =========================================================
-# Endpoint 2: Streaming Response (NDJSON for Real-time Progress)
+# 4. STREAMING ENDPOINT (NDJSON + DB)
 # =========================================================
 @app.post("/analyze-glaucoma-stream")
-async def analyze_glaucoma_stream(file: UploadFile = File(...)):
-    
-    # Generator function yielding sequential status updates
+async def analyze_glaucoma_stream(file: UploadFile = File(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     async def event_generator():
         try:
-            # Step 1: File receipt
-            yield json.dumps({"status": "progress", "step": 1, "message": "Image received on the server..."}) + "\n"
+            yield json.dumps({"status": "progress", "message": "Image received..."}) + "\n"
             await asyncio.sleep(0.1)
-            
+
             contents = await file.read()
-            image = Image.open(io.BytesIO(contents))
-            
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-                
+            image = Image.open(io.BytesIO(contents)).convert('RGB')
+
             current_dir = os.path.dirname(os.path.abspath(__file__))
-            root_dir = os.path.dirname(current_dir)
-            ai_dir = os.path.join(root_dir, 'ai')
-            
-            if ai_dir not in sys.path:
-                sys.path.append(ai_dir)
-                
+            ai_dir = os.path.join(os.path.dirname(current_dir), 'ai')
+            if ai_dir not in sys.path: sys.path.append(ai_dir)
+
             from pipeline.pipeline import GlaucomaPipeline
-            
             global glaucoma_pipeline
             if 'glaucoma_pipeline' not in globals():
-                yield json.dumps({"status": "progress", "step": 2, "message": "Loading AI models (YOLO and UNet)..."}) + "\n"
+                yield json.dumps({"status": "progress", "message": "Loading AI models..."}) + "\n"
                 await asyncio.sleep(0.1)
-                
-                yolo_path = os.path.join(ai_dir, 'pipeline', 'models', 'best.pt')
-                unet_path = os.path.join(ai_dir, 'pipeline', 'models', 'unetpp_best.pth')
-                print("[*] Initializing AI models for stream...")
-                glaucoma_pipeline = GlaucomaPipeline(yolo_path=yolo_path, unet_path=unet_path, device='cpu')
+                glaucoma_pipeline = GlaucomaPipeline(
+                    yolo_path=os.path.join(ai_dir, 'pipeline', 'models', 'best.pt'),
+                    unet_path=os.path.join(ai_dir, 'pipeline', 'models', 'unetpp_best.pth'), device='cpu'
+                )
 
             with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
                 tmp_path = tmp.name
                 image.save(tmp_path)
 
-            # Step 2: Start AI Inference
-            yield json.dumps({"status": "progress", "step": 3, "message": "Running AI: Eye detection and glaucoma segmentation..."}) + "\n"
+            yield json.dumps({"status": "progress", "message": "Running AI inference..."}) + "\n"
             await asyncio.sleep(0.1)
-
-            # Execute the heavy AI task in a background thread so the async loop isn't blocked
             result = await run_in_threadpool(glaucoma_pipeline.run, tmp_path)
 
-            # Step 3: AI execution completed, prepare image data
-            yield json.dumps({"status": "progress", "step": 4, "message": "Model finished analysis. Processing image masks..."}) + "\n"
+            yield json.dumps({"status": "progress", "message": "Processing image masks..."}) + "\n"
             await asyncio.sleep(0.1)
 
-            is_glaucoma = False
-            cup_to_disc_ratio = 0.0
-            confidence = 0.0
+            is_glaucoma, cup_to_disc_ratio, confidence = False, 0.0, 0.0
             open_cv_image = np.array(image)
 
             if result is not None:
                 full_img, crops, masks, cdr_val, _, _ = result
                 cup_to_disc_ratio = round(float(cdr_val), 2)
-                is_glaucoma = bool(cup_to_disc_ratio > 0.65)
-                confidence = 0.95 
+                is_glaucoma, confidence = bool(cup_to_disc_ratio > 0.65), 0.95 
 
-                # Apply masks safely
                 if len(crops) > 0 and len(masks) > 0 and len(masks[0]) >= 2:
                     x1, y1, x2, y2 = crops[0]
-                    disc_mask = masks[0][0] 
-                    cup_mask = masks[0][1]  
-
                     roi = open_cv_image[y1:y2, x1:x2]
                     roi_h, roi_w = roi.shape[:2]
-                    disc_resized = cv2.resize(disc_mask, (roi_w, roi_h))
-                    cup_resized = cv2.resize(cup_mask, (roi_w, roi_h))
-
-                    roi[disc_resized > 0.5] = roi[disc_resized > 0.5] * 0.5 + np.array([0, 255, 0]) * 0.5
-                    roi[cup_resized > 0.5] = roi[cup_resized > 0.5] * 0.5 + np.array([255, 0, 0]) * 0.5
+                    roi[cv2.resize(masks[0][0], (roi_w, roi_h)) > 0.5] = roi[cv2.resize(masks[0][0], (roi_w, roi_h)) > 0.5] * 0.5 + np.array([0, 255, 0]) * 0.5
+                    roi[cv2.resize(masks[0][1], (roi_w, roi_h)) > 0.5] = roi[cv2.resize(masks[0][1], (roi_w, roi_h)) > 0.5] * 0.5 + np.array([255, 0, 0]) * 0.5
                     open_cv_image[y1:y2, x1:x2] = roi
 
-            image = Image.fromarray(open_cv_image)
             buffered = io.BytesIO()
-            image.save(buffered, format="JPEG")
+            Image.fromarray(open_cv_image).save(buffered, format="JPEG")
             img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
-            
-            # Step 4: Yield final response with the Base64 image and predictions
+
+            # Save to database if the user provided a token
+            if current_user:
+                db.add(History(user_id=current_user.id, is_glaucoma=is_glaucoma, cup_to_disc_ratio=cup_to_disc_ratio))
+                db.commit()
+
             yield json.dumps({
-                "status": "success",
-                "step": 5,
-                "message": "Analysis completed successfully!",
-                "data": {
-                    "has_glaucoma": is_glaucoma,
-                    "confidence": confidence,
-                    "cup_to_disc_ratio": cup_to_disc_ratio,
-                    "image_base64": img_base64
-                }
+                "status": "success", "message": "Analysis completed!",
+                "data": {"has_glaucoma": is_glaucoma, "cdr": cup_to_disc_ratio, "image_base64": img_base64, "saved_to_db": bool(current_user)}
             }) + "\n"
 
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
-
+            if os.path.exists(tmp_path): os.remove(tmp_path)
         except Exception as e:
-            # Yield error gracefully to the client instead of breaking the connection
-            yield json.dumps({"status": "error", "message": f"An error occurred: {str(e)}"}) + "\n"
+            yield json.dumps({"status": "error", "message": str(e)}) + "\n"
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")
