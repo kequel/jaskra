@@ -5,9 +5,11 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, ForeignKey, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.exc import IntegrityError
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from PIL import Image
+from threading import Lock
 import io
 import base64
 import os
@@ -18,6 +20,7 @@ import cv2
 import json
 import asyncio
 import jwt
+import shutil
 
 # =========================================================
 # 1. DATABASE CONFIGURATION (SQLite)
@@ -55,10 +58,9 @@ def get_db():
 # =========================================================
 SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key-change-it-later")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 1440 # Token valid for 24h
+ACCESS_TOKEN_EXPIRE_MINUTES = 1440
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-# auto_error=False allows the streaming endpoint to work WITHOUT a token (for the old app)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login", auto_error=False) 
 
 def verify_password(plain_password, hashed_password):
@@ -87,21 +89,22 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return user
 
 app = FastAPI()
+model_lock = Lock() # Safeguard for lazy loading AI models
 
 # =========================================================
 # 3. IDENTITY ENDPOINTS
 # =========================================================
 @app.post("/register")
 def register_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    db_user = db.query(User).filter(User.username == form_data.username).first()
-    if db_user:
-        raise HTTPException(status_code=400, detail="Username already exists")
-    
     hashed_password = get_password_hash(form_data.password)
     new_user = User(username=form_data.username, hashed_password=hashed_password)
-    db.add(new_user)
-    db.commit()
-    return {"message": "Account created successfully!"}
+    try:
+        db.add(new_user)
+        db.commit()
+        return {"message": "Account created successfully!"}
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Username already exists")
 
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -127,36 +130,41 @@ def get_user_history(current_user: User = Depends(get_current_user), db: Session
 @app.post("/analyze-glaucoma-stream")
 async def analyze_glaucoma_stream(file: UploadFile = File(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     async def event_generator():
+        tmp_path = None
         try:
-            yield json.dumps({"status": "progress", "message": "Image received..."}) + "\n"
+            yield json.dumps({"status": "progress", "step": 1, "message": "Image received..."}) + "\n"
             await asyncio.sleep(0.1)
 
-            contents = await file.read()
-            image = Image.open(io.BytesIO(contents)).convert('RGB')
+            # Stream directly to temp file (fixes memory issue)
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                shutil.copyfileobj(file.file, tmp)
+                tmp_path = tmp.name
+
+            image = Image.open(tmp_path).convert('RGB')
 
             current_dir = os.path.dirname(os.path.abspath(__file__))
             ai_dir = os.path.join(os.path.dirname(current_dir), 'ai')
             if ai_dir not in sys.path: sys.path.append(ai_dir)
 
-            from pipeline.pipeline import GlaucomaPipeline
             global glaucoma_pipeline
             if 'glaucoma_pipeline' not in globals():
-                yield json.dumps({"status": "progress", "message": "Loading AI models..."}) + "\n"
+                yield json.dumps({"status": "progress", "step": 2, "message": "Loading AI models..."}) + "\n"
                 await asyncio.sleep(0.1)
-                glaucoma_pipeline = GlaucomaPipeline(
-                    yolo_path=os.path.join(ai_dir, 'pipeline', 'models', 'best.pt'),
-                    unet_path=os.path.join(ai_dir, 'pipeline', 'models', 'unetpp_best.pth'), device='cpu'
-                )
+                
+                # Lock to prevent concurrent initialization (fixes race condition)
+                with model_lock:
+                    if 'glaucoma_pipeline' not in globals():
+                        from pipeline.pipeline import GlaucomaPipeline
+                        glaucoma_pipeline = GlaucomaPipeline(
+                            yolo_path=os.path.join(ai_dir, 'pipeline', 'models', 'best.pt'),
+                            unet_path=os.path.join(ai_dir, 'pipeline', 'models', 'unetpp_best.pth'), device='cpu'
+                        )
 
-            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-                tmp_path = tmp.name
-                image.save(tmp_path)
-
-            yield json.dumps({"status": "progress", "message": "Running AI inference..."}) + "\n"
+            yield json.dumps({"status": "progress", "step": 3, "message": "Running AI inference..."}) + "\n"
             await asyncio.sleep(0.1)
             result = await run_in_threadpool(glaucoma_pipeline.run, tmp_path)
 
-            yield json.dumps({"status": "progress", "message": "Processing image masks..."}) + "\n"
+            yield json.dumps({"status": "progress", "step": 4, "message": "Processing image masks..."}) + "\n"
             await asyncio.sleep(0.1)
 
             is_glaucoma, cup_to_disc_ratio, confidence = False, 0.0, 0.0
@@ -179,18 +187,22 @@ async def analyze_glaucoma_stream(file: UploadFile = File(...), current_user: Us
             Image.fromarray(open_cv_image).save(buffered, format="JPEG")
             img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-            # Save to database if the user provided a token
             if current_user:
                 db.add(History(user_id=current_user.id, is_glaucoma=is_glaucoma, cup_to_disc_ratio=cup_to_disc_ratio))
                 db.commit()
 
+            # Contract with mobile app fixed (added step, confidence, and renamed cdr -> cup_to_disc_ratio)
             yield json.dumps({
-                "status": "success", "message": "Analysis completed!",
-                "data": {"has_glaucoma": is_glaucoma, "cdr": cup_to_disc_ratio, "image_base64": img_base64, "saved_to_db": bool(current_user)}
+                "status": "success", "step": 5, "message": "Analysis completed!",
+                "data": {"has_glaucoma": is_glaucoma, "confidence": confidence, "cup_to_disc_ratio": cup_to_disc_ratio, "image_base64": img_base64, "saved_to_db": bool(current_user)}
             }) + "\n"
 
-            if os.path.exists(tmp_path): os.remove(tmp_path)
         except Exception as e:
-            yield json.dumps({"status": "error", "message": str(e)}) + "\n"
+            # Hide raw exceptions from client
+            yield json.dumps({"status": "error", "message": "An internal server error occurred."}) + "\n"
+        finally:
+            # Always clean up temp file (fixes memory/disk leak)
+            if tmp_path and os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")
