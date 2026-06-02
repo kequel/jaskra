@@ -1,6 +1,7 @@
 import pika
 import time
 import os
+import sys
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -10,7 +11,7 @@ AMQP_URL = os.getenv("AMQP_URL")
 
 if not AMQP_URL:
     print("[-] ERROR: Missing AMQP_URL variable in .env file!")
-    exit(1)
+    sys.exit(1)
 
 def callback(ch, method, properties, body):
     print("\n[+] DING! Received a new task from Azure Cloud!")
@@ -20,6 +21,9 @@ def callback(ch, method, properties, body):
     
     print("[+] Worker: Success! Glaucoma detected (CDR = 0.65)")
     print("[*] Worker: Waiting for more tasks...\n")
+    
+    # Manual acknowledgment after successful processing
+    ch.basic_ack(delivery_tag=method.delivery_tag)
 
 print("=====================================================")
 print(" [*] DISTRIBUTED WORKER (Running locally on laptop)")
@@ -35,11 +39,14 @@ try:
     print(" [*] Connected! Listening on 'glaucoma_queue'...")
     print("=====================================================")
 
-    channel.basic_consume(queue='glaucoma_queue', on_message_callback=callback, auto_ack=True)
+    # auto_ack=False ensures messages aren't lost if the worker crashes
+    channel.basic_consume(queue='glaucoma_queue', on_message_callback=callback, auto_ack=False)
     channel.start_consuming()
     
 except Exception as e:
-    print(f"\n[-] Queue connection error: {e}")
+    import traceback
+    print(f"\n[-] Queue connection error occurred.")
+    print(traceback.format_exc())
 except KeyboardInterrupt:
     print("\n[*] Worker stopped by user.")
     if 'connection' in locals() and connection.is_open:

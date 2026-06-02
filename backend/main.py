@@ -249,5 +249,5 @@ async def demo_distributed_system(file: UploadFile = File(...)):
             "status": "success", 
             "message": "Image successfully sent to the queue! Waiting for the worker."
         }
-    except Exception as e:
-        return {"status": "error", "message": f"Queue connection failed: {str(e)}"}
+    except Exception:
+        return {"status": "error", "message": "Queue connection failed due to an internal server error."}
