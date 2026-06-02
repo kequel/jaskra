@@ -22,7 +22,7 @@ import json
 import asyncio
 import jwt
 import shutil
-
+import pika
 # =========================================================
 # 1. DATABASE CONFIGURATION (SQLite)
 # =========================================================
@@ -212,3 +212,42 @@ async def analyze_glaucoma_stream(file: UploadFile = File(...), current_user: Us
                 os.remove(tmp_path)
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")
+# =========================================================
+# 5. DISTRIBUTED SYSTEM DEMO (LAVINMQ / RABBITMQ)
+# =========================================================
+
+@app.post("/demo-distributed")
+async def demo_distributed_system(file: UploadFile = File(...)):
+    # Fetch the environment variable inside the function.
+    # This guarantees the server won't crash on startup if it's missing.
+    amqp_url = os.getenv("AMQP_URL")
+    
+    if not amqp_url:
+        return {
+            "status": "error", 
+            "message": "Missing AMQP_URL environment variable on Azure!"
+        }
+
+    try:
+        contents = await file.read()
+        image_b64 = base64.b64encode(contents).decode('utf-8')
+
+        params = pika.URLParameters(amqp_url)
+        connection = pika.BlockingConnection(params)
+        channel = connection.channel()
+
+        channel.queue_declare(queue='glaucoma_queue')
+
+        channel.basic_publish(
+            exchange='',
+            routing_key='glaucoma_queue',
+            body=image_b64
+        )
+        connection.close()
+
+        return {
+            "status": "success", 
+            "message": "Image successfully sent to the queue! Waiting for the worker."
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"Queue connection failed: {str(e)}"}
