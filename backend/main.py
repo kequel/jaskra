@@ -36,7 +36,7 @@ async def analyze_glaucoma(file: UploadFile = File(...)):
     if ai_dir not in sys.path:
         sys.path.append(ai_dir)
         
-    from pipeline.pipeline import GlaucomaPipeline
+    from pipeline import GlaucomaPipeline
 
     # Global initialization
     global glaucoma_pipeline
@@ -137,7 +137,7 @@ async def analyze_glaucoma_stream(file: UploadFile = File(...)):
             if ai_dir not in sys.path:
                 sys.path.append(ai_dir)
                 
-            from pipeline.pipeline import GlaucomaPipeline
+            from pipeline import GlaucomaPipeline
             
             global glaucoma_pipeline
             if 'glaucoma_pipeline' not in globals():
