@@ -41,8 +41,8 @@ async def analyze_glaucoma(file: UploadFile = File(...)):
     # Global initialization
     global glaucoma_pipeline
     if 'glaucoma_pipeline' not in globals():
-        yolo_path = os.path.join(ai_dir, 'pipeline', 'models', 'best.pt')
-        unet_path = os.path.join(ai_dir, 'pipeline', 'models', 'unetpp_best.pth')
+        yolo_path = os.path.join(ai_dir, 'yolo', 'yolo-roi-v1.pt')
+        unet_path = os.path.join(ai_dir, 'unet', 'unetpp-seg-v1.pth')
         print("[*] Initializing AI models...")
         glaucoma_pipeline = GlaucomaPipeline(yolo_path=yolo_path, unet_path=unet_path, device='cpu')
 
@@ -144,8 +144,8 @@ async def analyze_glaucoma_stream(file: UploadFile = File(...)):
                 yield json.dumps({"status": "progress", "step": 2, "message": "Loading AI models (YOLO and UNet)..."}) + "\n"
                 await asyncio.sleep(0.1)
                 
-                yolo_path = os.path.join(ai_dir, 'pipeline', 'models', 'best.pt')
-                unet_path = os.path.join(ai_dir, 'pipeline', 'models', 'unetpp_best.pth')
+                yolo_path = os.path.join(ai_dir, 'yolo', 'yolo-roi-v1.pt')
+                unet_path = os.path.join(ai_dir, 'unet', 'unetpp-seg-v1.pth')
                 print("[*] Initializing AI models for stream...")
                 glaucoma_pipeline = GlaucomaPipeline(yolo_path=yolo_path, unet_path=unet_path, device='cpu')
 
