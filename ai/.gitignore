@@ -3,6 +3,10 @@ venv/
 .venv/
 env/
 
+# Model weights (do not commit — too large for Git/LFS)
+*.pt
+*.pth
+
 # Data and Results
 results/
 
