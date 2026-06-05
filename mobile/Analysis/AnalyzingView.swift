@@ -58,7 +58,9 @@ struct AnalyzingView: View {
                 Text(String(repeating: ".", count: dots))
                     .font(.system(size: 14, weight: .bold, design: .monospaced))
                     .foregroundStyle(Color.brand)
-                    .frame(width: 22, alignment: .leading)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(width: 32, alignment: .leading)
             }
 
             VStack(spacing: 8) {
