@@ -1,9 +1,8 @@
 name: iOS coverage
 
-# Swift/iOS code coverage MUST be generated on macOS (the .swiftpm app uses
+# Swift/iOS coverage must be generated on macOS (the .swiftpm app uses
 # UIKit/SwiftUI/AppleProductTypes, which only build with Xcode). This runs on
-# GitHub's hosted macOS runner — no local Mac is needed. It only produces a
-# coverage number for Codecov (test pass/fail is not reported here).
+# GitHub's hosted macOS runner — no local Mac is needed.
 
 on:
   push:
@@ -22,6 +21,10 @@ on:
 jobs:
   ios-coverage:
     runs-on: macos-14
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
     defaults:
       run:
         working-directory: mobile
@@ -53,31 +56,39 @@ jobs:
             -resultBundlePath TestResults.xcresult \
             -derivedDataPath DerivedData
 
-      - name: Convert coverage & test results
+      - name: Export coverage to lcov
         if: always()
         run: |
-          brew install a7ex/homebrew-formulae/xcresultparser
-          xcresultparser --output-format cobertura TestResults.xcresult > coverage.xml \
-            || echo "Coverage conversion failed — check the test step / scheme name."
-          xcresultparser --output-format junit TestResults.xcresult > junit.xml \
-            || echo "Test-results conversion failed."
+          PROFDATA=$(find DerivedData -name '*.profdata' | head -1)
+          APP=$(find DerivedData/Build/Products -name '*.app' -type d | head -1)
+          echo "profdata: $PROFDATA"
+          echo "app:      $APP"
+          if [ -n "$PROFDATA" ] && [ -n "$APP" ]; then
+            BIN="$APP/$(basename "$APP" .app)"
+            xcrun llvm-cov export -format=lcov \
+              -instr-profile "$PROFDATA" "$BIN" \
+              --ignore-filename-regex='(Tests|DerivedData)/' \
+              > coverage.lcov || echo "llvm-cov export failed."
+          else
+            echo "No .profdata/.app found — did the test step build & run? (check the step above)"
+          fi
 
       - name: Upload Swift coverage to Codecov
         if: always()
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: mobile/coverage.xml
+          files: mobile/coverage.lcov
           flags: swift
           fail_ci_if_error: false
 
-      - name: Upload Swift test results to Codecov
+      - name: Report Swift test results on the PR
         if: always()
-        uses: codecov/test-results-action@v1
+        continue-on-error: true
+        uses: kishikawakatsumi/xcresulttool@v1
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: mobile/junit.xml
-          flags: swift
+          path: mobile/TestResults.xcresult
+          show-passed-tests: false
 
       - name: Upload xcresult artifact (for debugging)
         if: always()

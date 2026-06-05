@@ -68,7 +68,7 @@ jobs:
         if: always()
         run: |
           {
-            echo "### 📊 Code coverage"
+            echo "### Code coverage"
             echo '```'
             coverage report || echo "No coverage data (tests may have failed to run)."
             echo '```'
