@@ -113,7 +113,8 @@ def test_something(self, mock_run, sample_image, mock_pipeline_output_positive):
 
 ```bash
 # install dependencies
-pip install -r backend/requirements.txt pytest pytest-cov httpx Pillow
+pip install -r backend/requirements.txt -r requirements-test.txt
+
 
 # integration tests (start server first)
 uvicorn backend.main:app --host 0.0.0.0 --port 8000 &
