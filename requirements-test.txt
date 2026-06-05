@@ -1,0 +1,10 @@
+# Test & coverage dependencies (not required at runtime)
+pytest
+pytest-cov
+httpx
+Pillow
+
+# Extra libraries imported by the AI training code exercised in ai/unet/Model Training.py
+albumentations
+scikit-learn
+tqdm
