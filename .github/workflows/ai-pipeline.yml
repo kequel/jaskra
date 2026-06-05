@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          lfs: false
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -23,13 +25,13 @@ jobs:
 
       - name: Flake8 - syntax and import errors (blocks merge)
         run: |
-          flake8 ai/pipeline/pipeline.py \
+          flake8 ai/pipeline.py \
             --select=E9,F821 \
             --format='::error file=%(path)s,line=%(row)d::%(text)s'
 
       - name: Flake8 - style warning (does not block merge)
         run: |
-          flake8 ai/pipeline/pipeline.py \
+          flake8 ai/pipeline.py \
             --max-line-length=120 \
             --ignore=E9,F821 \
             --format='::warning file=%(path)s,line=%(row)d::%(text)s'
