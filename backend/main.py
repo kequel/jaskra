@@ -67,7 +67,7 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login", auto_error=False) 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login", auto_error=False)
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -95,7 +95,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return user
 
 app = FastAPI()
-model_lock = Lock() # Safeguard for lazy loading AI models
+model_lock = Lock()  # Safeguard for lazy loading AI models
 
 # =========================================================
 # 3. IDENTITY ENDPOINTS
@@ -117,7 +117,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     user = db.query(User).filter(User.username == form_data.username).first()
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid username or password")
-    
     access_token = create_access_token(data={"sub": user.username})
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -125,7 +124,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 def get_user_history(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if not current_user:
         raise HTTPException(status_code=401, detail="You must be logged in to view history")
-    
     records = db.query(History).filter(History.user_id == current_user.id).all()
     return {"history": [{"id": r.id, "is_glaucoma": r.is_glaucoma, "cdr": r.cup_to_disc_ratio, "date": r.created_at} for r in records]}
 
@@ -150,20 +148,22 @@ async def analyze_glaucoma_stream(file: UploadFile = File(...), current_user: Us
 
             current_dir = os.path.dirname(os.path.abspath(__file__))
             ai_dir = os.path.join(os.path.dirname(current_dir), 'ai')
-            if ai_dir not in sys.path: sys.path.append(ai_dir)
+            if ai_dir not in sys.path:
+                sys.path.append(ai_dir)
 
             global glaucoma_pipeline
             if 'glaucoma_pipeline' not in globals():
                 yield json.dumps({"status": "progress", "step": 2, "message": "Loading AI models..."}) + "\n"
                 await asyncio.sleep(0.1)
-                
+
                 # Lock to prevent concurrent initialization (fixes race condition)
                 with model_lock:
                     if 'glaucoma_pipeline' not in globals():
-                        from pipeline.pipeline import GlaucomaPipeline
+                        from pipeline import GlaucomaPipeline
                         glaucoma_pipeline = GlaucomaPipeline(
-                            yolo_path=os.path.join(ai_dir, 'pipeline', 'models', 'best.pt'),
-                            unet_path=os.path.join(ai_dir, 'pipeline', 'models', 'unetpp_best.pth'), device='cpu'
+                            yolo_path=os.path.join(ai_dir, 'yolo', 'yolo-roi-v1.pt'),
+                            unet_path=os.path.join(ai_dir, 'unet', 'unetpp-seg-v1.pth'),
+                            device='cpu'
                         )
 
             yield json.dumps({"status": "progress", "step": 3, "message": "Running AI inference..."}) + "\n"
@@ -179,7 +179,7 @@ async def analyze_glaucoma_stream(file: UploadFile = File(...), current_user: Us
             if result is not None:
                 full_img, crops, masks, cdr_val, _, _ = result
                 cup_to_disc_ratio = round(float(cdr_val), 2)
-                is_glaucoma, confidence = bool(cup_to_disc_ratio > 0.65), 0.95 
+                is_glaucoma, confidence = bool(cup_to_disc_ratio > 0.65), 0.95
 
                 if len(crops) > 0 and len(masks) > 0 and len(masks[0]) >= 2:
                     x1, y1, x2, y2 = crops[0]
@@ -197,7 +197,6 @@ async def analyze_glaucoma_stream(file: UploadFile = File(...), current_user: Us
                 db.add(History(user_id=current_user.id, is_glaucoma=is_glaucoma, cup_to_disc_ratio=cup_to_disc_ratio))
                 db.commit()
 
-            # Contract with mobile app fixed (added step, confidence, and renamed cdr -> cup_to_disc_ratio)
             yield json.dumps({
                 "status": "success", "step": 5, "message": "Analysis completed!",
                 "data": {"has_glaucoma": is_glaucoma, "confidence": confidence, "cup_to_disc_ratio": cup_to_disc_ratio, "image_base64": img_base64, "saved_to_db": bool(current_user)}
@@ -212,19 +211,18 @@ async def analyze_glaucoma_stream(file: UploadFile = File(...), current_user: Us
                 os.remove(tmp_path)
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")
+
 # =========================================================
 # 5. DISTRIBUTED SYSTEM DEMO (LAVINMQ / RABBITMQ)
 # =========================================================
 
 @app.post("/demo-distributed")
 async def demo_distributed_system(file: UploadFile = File(...)):
-    # Fetch the environment variable inside the function.
-    # This guarantees the server won't crash on startup if it's missing.
     amqp_url = os.getenv("AMQP_URL")
-    
+
     if not amqp_url:
         return {
-            "status": "error", 
+            "status": "error",
             "message": "Missing AMQP_URL environment variable on Azure!"
         }
 
@@ -246,7 +244,7 @@ async def demo_distributed_system(file: UploadFile = File(...)):
         connection.close()
 
         return {
-            "status": "success", 
+            "status": "success",
             "message": "Image successfully sent to the queue! Waiting for the worker."
         }
     except Exception:
