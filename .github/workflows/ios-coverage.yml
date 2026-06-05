@@ -1,0 +1,88 @@
+name: iOS coverage
+
+# Swift/iOS code coverage MUST be generated on macOS (the .swiftpm app uses
+# UIKit/SwiftUI/AppleProductTypes, which only build with Xcode). This runs on
+# GitHub's hosted macOS runner — no local Mac is needed. It only produces a
+# coverage number for Codecov (test pass/fail is not reported here).
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/ios-coverage.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/ios-coverage.yml'
+
+jobs:
+  ios-coverage:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Environment & available schemes
+        run: |
+          xcodebuild -version
+          echo "Schemes (confirm the -scheme value used below):"
+          xcodebuild -list || true
+
+      - name: Pick an available iPhone simulator
+        id: sim
+        run: |
+          NAME=$(xcrun simctl list devices available | grep -oE 'iPhone [0-9]+( Pro)?' | head -1)
+          echo "Using simulator: $NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Build & test with coverage
+        # Non-blocking while CI for the .swiftpm app package is being dialed in.
+        continue-on-error: true
+        run: |
+          xcodebuild test \
+            -scheme JaskraApp \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -enableCodeCoverage YES \
+            -resultBundlePath TestResults.xcresult \
+            -derivedDataPath DerivedData
+
+      - name: Convert coverage & test results
+        if: always()
+        run: |
+          brew install a7ex/homebrew-formulae/xcresultparser
+          xcresultparser --output-format cobertura TestResults.xcresult > coverage.xml \
+            || echo "Coverage conversion failed — check the test step / scheme name."
+          xcresultparser --output-format junit TestResults.xcresult > junit.xml \
+            || echo "Test-results conversion failed."
+
+      - name: Upload Swift coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: mobile/coverage.xml
+          flags: swift
+          fail_ci_if_error: false
+
+      - name: Upload Swift test results to Codecov
+        if: always()
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: mobile/junit.xml
+          flags: swift
+
+      - name: Upload xcresult artifact (for debugging)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-results
+          path: mobile/TestResults.xcresult
+          if-no-files-found: ignore

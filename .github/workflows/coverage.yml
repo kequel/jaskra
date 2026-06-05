@@ -61,6 +61,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
+          flags: backend,ai
           fail_ci_if_error: false
 
       - name: Write coverage summary
@@ -78,7 +79,7 @@ jobs:
         run: |
           python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import os, xml.etree.ElementTree as ET
-          print("### 🧪 Test results\n")
+          print("### Test results\n")
           if not os.path.exists("junit.xml"):
               print("_No test results file found._")
           else:
@@ -98,11 +99,11 @@ jobs:
                   total = len(passed) + len(failed) + skipped
                   print(f"**{len(passed)} passed**, **{len(failed)} failed**, {skipped} skipped — {total} total\n")
                   if failed:
-                      print("<details open><summary>❌ Failed</summary>\n")
+                      print("<details open><summary>Failed</summary>\n")
                       for n in failed: print(f"- `{n}`")
                       print("\n</details>\n")
                   if passed:
-                      print("<details><summary>✅ Passed</summary>\n")
+                      print("<details><summary>Passed</summary>\n")
                       for n in passed: print(f"- `{n}`")
                       print("\n</details>")
               except Exception as e:
@@ -115,6 +116,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./junit.xml
+          flags: backend,ai
 
       - name: Upload HTML coverage report
         if: always()
