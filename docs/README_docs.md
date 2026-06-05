@@ -4,12 +4,10 @@ This directory contains all technical reports, meeting minutes, and design docum
 ##  Directory Structure
 
 * `meetings/` – Meetins description from weekly team meetings (MoM).
-* `reports/` – Progress reports for supervisor.
-* `technical/` – Technical documentation divided by project sector:
-    * `camera/` – Optical calculations, hardware assembly, and materials.
-    * `mobile/` – App architecture, FastAPI integration, and UI/UX flows.
-    * `ai/` – Model training, dataset descriptions, and evaluation metrics.
-* `other/` – Any other reports, mostly for studies purposes.
+* Technical documentation:
+    * – Optical calculations, hardware assembly, and materials.
+    * – App architecture, FastAPI integration, and UI/UX flows.
+    * – Model training, dataset descriptions, and evaluation metrics.
 
 ---
 
@@ -21,9 +19,8 @@ To maintain a professional and consistent look across all documents, use the pro
     * **Use for:** Internal team meetings.
     * **Filename convention:** `YYYY-MM-DD_meeting.pdf`
 
-2.  **`raports_and_technical_template.tex`**
-    * **Use for:** Progress reports and technical documentation in `technical/` subdirectories.
-    * **Filename convention (reports):** `YYYY-MM-DD_progress.pdf`
+2.  **`technical_template.tex`**
+    * **Use for:** Progress reports and technical documentation.
     * **Filename convention (technical):** `short_description.pdf`
 
 ---
