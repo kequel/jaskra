@@ -151,8 +151,8 @@ def main():
     # Setup command line argument parsing
     parser = argparse.ArgumentParser(description='Glaucoma Detection Pipeline')
     parser.add_argument('--image', type=str, required=True, help='Path to input image')
-    parser.add_argument('--yolo', type=str, default='./models/best.pt', help='Path to YOLO weights')
-    parser.add_argument('--unet', type=str, default='./models/unetpp_best.pth', help='Path to U-Net++ weights')
+    parser.add_argument('--yolo', type=str, default='./yolo/yolo-roi-v1.pt', help='Path to YOLO weights')
+    parser.add_argument('--unet', type=str, default='./unet/unetpp-seg-v1.pth', help='Path to U-Net++ weights')
     parser.add_argument('--masks', type=str, default='./data/masks', help='Directory containing GT masks')
     parser.add_argument('--output', type=str, default='results', help='Output results directory')
     args = parser.parse_args()

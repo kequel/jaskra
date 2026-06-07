@@ -38,18 +38,25 @@ jobs:
             --format='::warning file=%(path)s,line=%(row)d::%(text)s'
         continue-on-error: true
 
-  # blocks merge if endpoint /analyze-glaucoma doesn't respond correctly
   integration-test:
     runs-on: ubuntu-latest
     needs: lint
+    env:
+      SECRET_KEY: test-secret-key-not-for-production
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          lfs: true 
 
-      - name: Checkout LFS objects
-        run: git lfs checkout 
+      - name: Download model weights from GitHub Release
+        run: |
+          gh release download models-v1 \
+            --pattern 'yolo-roi-v1.pt' \
+            --dir ai/yolo/
+          gh release download models-v1 \
+            --pattern 'unetpp-seg-v1.pth' \
+            --dir ai/unet/
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -64,12 +71,11 @@ jobs:
           cd backend
           uvicorn main:app --host 0.0.0.0 --port 8000 &
           curl --retry 10 --retry-delay 60 --retry-connrefused http://localhost:8000/docs > /dev/null 2>&1
-          # trying for 10 minutes, 60 seconds apart, until the server is up
 
-      - name: Test POST /analyze-glaucoma
+      - name: Test POST /analyze-glaucoma-stream
         run: |
           python3 - <<'EOF'
-          import httpx, base64, io, sys
+          import httpx, base64, io, sys, json
           from PIL import Image
 
           img = Image.new("RGB", (100, 100), color=(180, 100, 80))
@@ -77,10 +83,11 @@ jobs:
           img.save(buf, format="JPEG")
           buf.seek(0)
 
+          # Anonymous request (no auth token) — endpoint should still work, just skips DB save
           resp = httpx.post(
-              "http://localhost:8000/analyze-glaucoma",
+              "http://localhost:8000/analyze-glaucoma-stream",
               files={"file": ("test.jpg", buf, "image/jpeg")},
-              timeout=30
+              timeout=120
           )
 
           if resp.status_code != 200:
@@ -88,7 +95,28 @@ jobs:
               print(f"Error message: {resp.text}")
               sys.exit(1)
 
-          data = resp.json()
+          # Response is NDJSON: one JSON object per line. Find the final "success" message.
+          final = None
+          for line in resp.text.splitlines():
+              line = line.strip()
+              if not line:
+                  continue
+              try:
+                  obj = json.loads(line)
+              except json.JSONDecodeError:
+                  continue
+              if obj.get("status") == "error":
+                  print(f"::error::Stream returned error: {obj.get('message')}")
+                  sys.exit(1)
+              if obj.get("status") == "success":
+                  final = obj
+
+          if final is None:
+              print("::error::No success message found in stream")
+              print(f"Raw response: {resp.text}")
+              sys.exit(1)
+
+          data = final.get("data", {})
           expected_keys = {"has_glaucoma", "confidence", "cup_to_disc_ratio", "image_base64"}
           missing = expected_keys - data.keys()
           if missing:

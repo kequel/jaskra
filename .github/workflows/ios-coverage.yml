@@ -1,0 +1,109 @@
+name: iOS coverage
+
+# Swift/iOS coverage + test results are generated on macOS (GitHub's hosted
+# runner — no local Mac needed). Coverage goes to Codecov (flag `swift`) and
+# test results go to Codecov Test Analytics so failing Swift tests show up in
+# the same PR comment as the Python ones.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/ios-coverage.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/ios-coverage.yml'
+
+jobs:
+  ios-coverage:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Environment & available schemes
+        run: |
+          xcodebuild -version
+          echo "Schemes (confirm the -scheme value used below):"
+          xcodebuild -list || true
+
+      - name: Install xcbeautify
+        run: brew install xcbeautify
+
+      - name: Pick an available iPhone simulator
+        id: sim
+        run: |
+          NAME=$(xcrun simctl list devices available | grep -oE 'iPhone [0-9]+( Pro)?' | head -1)
+          echo "Using simulator: $NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Build & test with coverage
+        # Non-blocking: test failures must not fail the job (they still report).
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -scheme JaskraApp \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -enableCodeCoverage YES \
+            -resultBundlePath TestResults.xcresult \
+            -derivedDataPath DerivedData \
+            | xcbeautify --report junit
+
+      - name: Export coverage to lcov
+        if: always()
+        run: |
+          PROFDATA=$(find DerivedData -name '*.profdata' | head -1)
+          BIN=""
+          APP=$(find DerivedData/Build/Products -name '*.app' -type d | head -1)
+          if [ -n "$APP" ]; then
+            BIN="$APP/$(basename "$APP" .app)"
+          else
+            XCTEST=$(find DerivedData -name '*.xctest' -type d | head -1)
+            [ -n "$XCTEST" ] && BIN="$XCTEST/$(basename "$XCTEST" .xctest)"
+          fi
+          echo "profdata: $PROFDATA"
+          echo "binary:   $BIN"
+          if [ -n "$PROFDATA" ] && [ -n "$BIN" ]; then
+            xcrun llvm-cov export -format=lcov \
+              -instr-profile "$PROFDATA" "$BIN" \
+              --ignore-filename-regex='(Tests|DerivedData)/' \
+              > coverage.lcov || echo "llvm-cov export failed."
+          else
+            echo "No .profdata / test binary found — did the test step build & run?"
+          fi
+
+      - name: Upload Swift coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: mobile/coverage.lcov
+          flags: swift
+          fail_ci_if_error: false
+
+      - name: Upload Swift test results to Codecov
+        if: always()
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: mobile/build/reports/junit.xml
+          flags: swift
+
+      - name: Upload artifacts (for debugging)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-results
+          path: |
+            mobile/TestResults.xcresult
+            mobile/build/reports/junit.xml
+          if-no-files-found: ignore
