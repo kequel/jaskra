@@ -1,0 +1,127 @@
+name: Code coverage
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'tests/**'
+      - 'backend/**'
+      - 'ai/**'
+      - '.coveragerc'
+      - 'codecov.yml'
+      - '.github/workflows/coverage.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'tests/**'
+      - 'backend/**'
+      - 'ai/**'
+      - '.coveragerc'
+      - 'codecov.yml'
+      - '.github/workflows/coverage.yml'
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    env:
+      # main.py refuses to import without a secret key
+      SECRET_KEY: test-secret-key-not-for-production
+      # let the tests resolve `main`, `tests.*` and `pipeline` imports
+      PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/backend:${{ github.workspace }}/ai
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt -r requirements-test.txt
+
+      - name: Run tests with coverage
+        # Non-blocking for now — the test suite is still being built out.
+        # Remove `continue-on-error` once coverage should gate merges.
+        continue-on-error: true
+        run: |
+          pytest -m "not integration" \
+            --cov=backend --cov=ai \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --cov-report=html \
+            --junitxml=junit.xml
+
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: backend,ai
+          fail_ci_if_error: false
+
+      - name: Write coverage summary
+        if: always()
+        run: |
+          {
+            echo "### Code coverage"
+            echo '```'
+            coverage report || echo "No coverage data (tests may have failed to run)."
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Write test results summary
+        if: always()
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import os, xml.etree.ElementTree as ET
+          print("### Test results\n")
+          if not os.path.exists("junit.xml"):
+              print("_No test results file found._")
+          else:
+              try:
+                  root = ET.parse("junit.xml").getroot()
+                  suites = root.findall("testsuite") or [root]
+                  passed, failed, skipped = [], [], 0
+                  for s in suites:
+                      for tc in s.findall("testcase"):
+                          name = f"{tc.get('classname','')}::{tc.get('name','')}"
+                          if tc.find("failure") is not None or tc.find("error") is not None:
+                              failed.append(name)
+                          elif tc.find("skipped") is not None:
+                              skipped += 1
+                          else:
+                              passed.append(name)
+                  total = len(passed) + len(failed) + skipped
+                  print(f"**{len(passed)} passed**, **{len(failed)} failed**, {skipped} skipped — {total} total\n")
+                  if failed:
+                      print("<details open><summary>Failed</summary>\n")
+                      for n in failed: print(f"- `{n}`")
+                      print("\n</details>\n")
+                  if passed:
+                      print("<details><summary>Passed</summary>\n")
+                      for n in passed: print(f"- `{n}`")
+                      print("\n</details>")
+              except Exception as e:
+                  print(f"_Could not parse test results: {e}_")
+          PY
+
+      - name: Upload test results to Codecov
+        if: always()
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./junit.xml
+          flags: backend,ai
+
+      - name: Upload HTML coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: htmlcov/
+          if-no-files-found: ignore
