@@ -13,7 +13,6 @@ tests/
 ├── conftest.py           # shared fixtures (images, masks, mock pipeline outputs)
 ├── base_test.py          # BaseTest with shared assertion helpers
 ├── backend/
-├── mobile/
 ├── ai_pipeline/
 ├── ai_yolo/
 └── ai_unet/
@@ -21,6 +20,9 @@ tests/
 ```
 
 Every subdirectory must have an `__init__.py` file.
+
+> **iOS (mobile) tests** are written in Swift (XCTest) and live in the app target at
+> `mobile/Tests/` — **not** in this `tests/` directory. They are maintained separately.
 
 ---
 
@@ -97,7 +99,7 @@ All shared fixtures live in `tests/conftest.py`. **Do not define fixtures inside
 The pipeline is imported dynamically inside the endpoint functions in `main.py`. Patch it at its definition location:
 
 ```python
-PIPELINE_PATCH = "pipeline.pipeline.GlaucomaPipeline.run"
+PIPELINE_PATCH = "pipeline.GlaucomaPipeline.run"
 
 @patch(PIPELINE_PATCH)
 def test_something(self, mock_run, sample_image, mock_pipeline_output_positive):
@@ -111,10 +113,11 @@ def test_something(self, mock_run, sample_image, mock_pipeline_output_positive):
 
 ```bash
 # install dependencies
-pip install -r backend/requirements.txt pytest pytest-cov httpx Pillow
+pip install -r backend/requirements.txt -r requirements-test.txt
+
 
 # integration tests (start server first)
-uvicorn backend/main:app --host 0.0.0.0 --port 8000 &
+uvicorn backend.main:app --host 0.0.0.0 --port 8000 &
 
 # single file
 pytest tests/backend/test_api.py -v
