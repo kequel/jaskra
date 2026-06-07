@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import ImageIO
 
 // Response Model
 struct GlaucomaResult: Codable {
@@ -39,13 +40,32 @@ class GlaucomaService {
 
     private let baseURL = "https://glaucoma-a5cpf7arbdetdmax.polandcentral-01.azurewebsites.net"
 
+    private func strippedJPEG(from image: UIImage, quality: CGFloat = 0.9) -> Data? {
+        guard let jpeg = image.jpegData(compressionQuality: quality),
+              let source = CGImageSourceCreateWithData(jpeg as CFData, nil),
+              let uti = CGImageSourceGetType(source) else { return nil }
+
+        let output = NSMutableData()
+        guard let dest = CGImageDestinationCreateWithData(output, uti, 1, nil) else { return nil }
+
+        let cleanProperties: [CFString: Any] = [
+            kCGImagePropertyExifDictionary: kCFNull,
+            kCGImagePropertyGPSDictionary: kCFNull,
+            kCGImagePropertyTIFFDictionary: kCFNull,
+            kCGImagePropertyIPTCDictionary: kCFNull
+        ]
+        CGImageDestinationAddImageFromSource(dest, source, 0, cleanProperties as CFDictionary)
+        guard CGImageDestinationFinalize(dest) else { return nil }
+        return output as Data
+    }
+
     // Streaming analyze (NDJSON)
     func analyzeStreaming(
         image: UIImage,
         onStep: @escaping (Int) -> Void
     ) async throws -> GlaucomaResult {
         guard let url = URL(string: "\(baseURL)/analyze-glaucoma-stream") else { throw ServiceError.badURL }
-        guard let jpeg = image.jpegData(compressionQuality: 0.9) else { throw ServiceError.encodingFailed }
+        guard let jpeg = strippedJPEG(from: image) else { throw ServiceError.encodingFailed }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -93,7 +113,7 @@ class GlaucomaService {
     // Classic (non-streaming) fallback
     func analyze(image: UIImage) async throws -> GlaucomaResult {
         guard let url = URL(string: "\(baseURL)/analyze-glaucoma") else { throw ServiceError.badURL }
-        guard let jpeg = image.jpegData(compressionQuality: 0.9) else { throw ServiceError.encodingFailed }
+        guard let jpeg = strippedJPEG(from: image) else { throw ServiceError.encodingFailed }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"

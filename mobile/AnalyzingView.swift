@@ -42,7 +42,9 @@ struct AnalyzingView: View {
             )
             .ignoresSafeArea()
 
-            VStack(spacing: 40) {
+            VStack(spacing: 28) {
+
+                Spacer().frame(minHeight: 8)
 
                 // circles animation
                 ZStack {
@@ -50,7 +52,7 @@ struct AnalyzingView: View {
                     ForEach(0..<3, id: \.self) { i in
                         Circle()
                             .stroke(Color.accentCyan.opacity(0.08 - Double(i) * 0.02), lineWidth: 1)
-                            .frame(width: CGFloat(100 + i * 50), height: CGFloat(100 + i * 50))
+                            .frame(width: CGFloat(80 + i * 40), height: CGFloat(80 + i * 40))
                     }
 
                     // spinning arc
@@ -63,18 +65,18 @@ struct AnalyzingView: View {
                             ),
                             style: StrokeStyle(lineWidth: 2, lineCap: .round)
                         )
-                        .frame(width: 100, height: 100)
+                        .frame(width: 80, height: 80)
                         .rotationEffect(.degrees(rotation))
 
                     // pulse glow
                     Circle()
                         .fill(Color.accentCyan.opacity(pulse ? 0.15 : 0.05))
-                        .frame(width: 60, height: 60)
+                        .frame(width: 48, height: 48)
                         .scaleEffect(pulse ? 1.1 : 0.9)
 
                     // eye icon
                     Image(systemName: "eye")
-                        .font(.system(size: 22, weight: .ultraLight))
+                        .font(.system(size: 20, weight: .ultraLight))
                         .foregroundStyle(Color.accentCyan)
                 }
                 .onAppear {
@@ -87,21 +89,19 @@ struct AnalyzingView: View {
                 }
 
                 // text header
-                VStack(spacing: 10) {
-                    HStack(spacing: 4) {
-                        Text("ANALIZOWANIE")
-                            .font(.system(size: 15, weight: .bold, design: .monospaced))
-                            .tracking(4)
-                            .foregroundStyle(Color.textPrimary)
-                        Text(String(repeating: ".", count: dots))
-                            .font(.system(size: 15, weight: .bold, design: .monospaced))
-                            .foregroundStyle(Color.accentCyan)
-                            .frame(width: 24, alignment: .leading)
-                    }
+                HStack(spacing: 4) {
+                    Text("ANALIZOWANIE")
+                        .font(.system(size: 14, weight: .bold, design: .monospaced))
+                        .tracking(4)
+                        .foregroundStyle(Color.textPrimary)
+                    Text(String(repeating: ".", count: dots))
+                        .font(.system(size: 14, weight: .bold, design: .monospaced))
+                        .foregroundStyle(Color.accentCyan)
+                        .frame(width: 22, alignment: .leading)
                 }
 
                 // Progress steps — driven by real backend steps
-                VStack(spacing: 10) {
+                VStack(spacing: 8) {
                     ProgressStep(
                         label: "Wgrywanie obrazu",
                         done: isDone(1),
@@ -110,7 +110,7 @@ struct AnalyzingView: View {
                     ProgressStep(
                         label: "Detekcja tarczy wzrokowej",
                         done: isDone(2),
-                        active: isActive(2) || isActive(3)   // steps 2+3 both "run AI"
+                        active: isActive(2) || isActive(3)
                     )
                     ProgressStep(
                         label: "Pomiar wskaźnika C/D",
@@ -124,6 +124,8 @@ struct AnalyzingView: View {
                     )
                 }
                 .padding(.horizontal, 48)
+
+                Spacer().frame(minHeight: 8)
             }
         }
         .onReceive(timer) { _ in
