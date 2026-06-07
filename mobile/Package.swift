@@ -34,7 +34,7 @@ let package = Package(
         )
     ],
     targets: [
-        .executableTarget(
+        .target(
             name: "AppModule",
             path: ".",
             exclude: ["Tests"],
