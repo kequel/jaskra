@@ -1,0 +1,27 @@
+# Codecov configuration — coverage status checks + PR comments
+# Reference: https://docs.codecov.com/docs/codecovyml-reference
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto         # compare against the PR base branch
+        threshold: 1%         # tolerate a 1% drop before the check turns red
+        informational: true   # non-blocking while the suite is WIP (set false to gate merges)
+    patch:
+      default:
+        target: 80%           # coverage expected on the lines changed by the PR
+        informational: true
+
+# Always leave a coverage comment on PRs; drops are highlighted in the diff.
+comment:
+  layout: "header, diff, flags, files"
+  behavior: default
+  require_changes: false
+
+# Only the Python code we actually measure counts toward coverage.
+ignore:
+  - "mobile/**"
+  - "hardware/**"
+  - "docs/**"
+  - "tests/**"

@@ -7,7 +7,8 @@ from pathlib import Path
 
 from tests.base_test import BaseTest
 
-file_path = Path("ai/unet/Model Training.py")
+ROOT = Path(__file__).resolve().parents[2]
+file_path = ROOT / "ai" / "unet" / "Model Training.py"
 spec = importlib.util.spec_from_file_location("model_training", file_path)
 model_training = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(model_training)

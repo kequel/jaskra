@@ -7,7 +7,7 @@ from tests.base_test import BaseTest
 
 client = TestClient(app)
 
-PIPELINE_PATCH = "pipeline.pipeline.GlaucomaPipeline.run"
+PIPELINE_PATCH = "pipeline.GlaucomaPipeline.run"
 
 
 class TestGlaucomaAPI(BaseTest):
