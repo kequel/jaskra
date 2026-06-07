@@ -1,4 +1,7 @@
 # Glaucoma AI-Powered Fundus Image Detection 
+
+[![codecov](https://codecov.io/gh/kequel/jaskra/graph/badge.svg)](https://codecov.io/gh/kequel/jaskra)
+
 ## Project Overview
 Glaucoma is one of the leading causes of irreversible vision loss worldwide. Early detection is critical, yet manual analysis of fundus photographs is time-consuming and requires specialized ophthalmological expertise.
 
