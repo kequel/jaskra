@@ -1,0 +1,63 @@
+name: AI models (YOLO & UNet) checks
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'ai/yolo/**'
+      - 'ai/unet/**'
+      - '.github/workflows/ai-models.yml'
+
+jobs:
+  # blocks merge on real Python errors in YOLO/UNet code
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install linters
+        run: pip install flake8 nbqa
+
+      - name: Flake8 - syntax & undefined names (blocks merge)
+        run: |
+          flake8 ai/yolo ai/unet \
+            --select=E9,F821 \
+            --format='::error file=%(path)s,line=%(row)d::%(text)s'
+
+      - name: Flake8 - style & unused imports (does not block merge)
+        run: |
+          flake8 ai/yolo ai/unet \
+            --max-line-length=120 \
+            --select=E1,E2,E3,E5,E7,W,F401,F811 \
+            --format='::warning file=%(path)s,line=%(row)d::%(text)s'
+        continue-on-error: true
+
+      - name: Lint notebooks (does not block merge)
+        run: |
+          nbqa flake8 ai/yolo --select=E9,F821 \
+            --format='::warning file=%(path)s,line=%(row)d::%(text)s'
+        continue-on-error: true
+
+  #  merge if model weights are committed (keep them in the Release)
+  no-model-weights:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Fail if model weights are committed
+        run: |
+          weights=$(git ls-files 'ai/**/*.pt' 'ai/**/*.pth')
+          if [ -n "$weights" ]; then
+            echo "::error::Model weights must not be committed — publish them in the 'models-v1' Release instead. Found:"
+            echo "$weights"
+            exit 1
+          fi
+          echo "OK — no model weights committed."
