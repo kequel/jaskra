@@ -1,34 +1,36 @@
-# Project Documentation Management 
-This directory contains all technical reports, meeting minutes, and design documentation for the **Glaucoma Detection** project.
+# Project Documentation
 
-##  Directory Structure
+This directory holds all non-code documentation for the **Glaucoma Detection** project:
+meeting minutes, Scrum/agile course deliverables, and technical reports.
 
-* `meetings/` – Meetins description from weekly team meetings (MoM).
-* `reports/` – Progress reports for supervisor.
-* `technical/` – Technical documentation divided by project sector:
-    * `camera/` – Optical calculations, hardware assembly, and materials.
-    * `mobile/` – App architecture, FastAPI integration, and UI/UX flows.
-    * `ai/` – Model training, dataset descriptions, and evaluation metrics.
-* `other/` – Any other reports, mostly for studies purposes.
+## Directory structure
+```
+docs/
+├── meetings/                  - Minutes of weekly team meetings (MoM)
+│   ├── 2025/
+│   ├── 2026/
+│   └── meeting_template.tex   - LaTeX template for meeting minutes
+├── scrum/                     - Agile/Scrum course deliverables (see scrum/README_scrum_docs.md)
+├── technical/                 - Technical reports, grouped by area
+│   ├── ai/
+│   ├── app/
+│   ├── camera/
+│   └── technical_template.tex - LaTeX template for technical reports
+└── README_docs.md
+```
 
----
+## LaTeX templates
+Use the shared templates to keep documents consistent:
 
-## LaTeX Templates
+- **`meetings/meeting_template.tex`** — meeting minutes. Filename convention: `YYYY-MM-DD_meeting.pdf`.
+- **`technical/technical_template.tex`** — technical reports & documentation. Filename convention: `short_description.pdf`.
 
-To maintain a professional and consistent look across all documents, use the provided `.tex` templates:
-
-1.  **`meetings_template.tex`**
-    * **Use for:** Internal team meetings.
-    * **Filename convention:** `YYYY-MM-DD_meeting.pdf`
-
-2.  **`raports_and_technical_template.tex`**
-    * **Use for:** Progress reports and technical documentation in `technical/` subdirectories.
-    * **Filename convention (reports):** `YYYY-MM-DD_progress.pdf`
-    * **Filename convention (technical):** `short_description.pdf`
-
----
-
-## Other Instructions
-When documenting TODOs, use the following syntax to link directly to the repository:
+## Linking issues from documents
+When referencing a GitHub issue inside a LaTeX document:
 ```latex
-\href{[https://github.com/kequel/jaskra/issues/X](https://github.com/kequel/jaskra/issues/X)}{Issue title \#X}
+\href{https://github.com/kequel/jaskra/issues/X}{Issue title \#X}
+```
+
+## Language
+Meeting minutes and Scrum deliverables are written in **Polish** (course requirement).
+Technical reports must be in English.
