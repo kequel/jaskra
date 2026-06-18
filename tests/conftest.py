@@ -1,5 +1,6 @@
 import pytest
 import io
+import cv2
 import numpy as np
 import os
 import tempfile
@@ -86,6 +87,40 @@ def mock_pipeline_output_negative():
     cdr_gt = 0.0
     return (full_img, crops, masks, cdr_val, gt_masks, cdr_gt)
 
+@pytest.fixture(scope="session")
+def yolo_glaucoma_model():
+    """
+    Session-scoped fixture to load the YOLO model once for all tests.
+    """
+    from ultralytics import YOLO
+    return YOLO('../../ai/yolo/weights/last.pt')
+
+
+@pytest.fixture
+def synthetic_fundus_image() -> np.ndarray:
+    """Synthetic 512x512 BGR image mimicking a fundus photo with a bright disc region.
+
+    A dark reddish background with a bright yellowish ellipse in the center
+    gives the YOLO model a realistic-enough target to exercise its detection path.
+    """
+    img = np.full((512, 512, 3), (30, 20, 60), dtype=np.uint8)  # dark reddish BGR
+    cv2.ellipse(img, (256, 256), (80, 80), 0, 0, 360, (180, 220, 240), -1)
+    return img
+
+
+@pytest.fixture
+def sample_full_image_512() -> np.ndarray:
+    """512x512 BGR image with a distinctive pattern for template-matching tests."""
+    img = np.zeros((512, 512, 3), dtype=np.uint8)
+    cv2.circle(img, (256, 256), 100, (200, 200, 200), -1)
+    cv2.rectangle(img, (200, 200), (312, 312), (255, 255, 255), -1)
+    return img
+
+
+@pytest.fixture
+def sample_crop_from_center(sample_full_image_512) -> np.ndarray:
+    """A crop taken from the center of sample_full_image_512 (200x200 region)."""
+    return sample_full_image_512[156:356, 156:356].copy()
 
 @pytest.fixture
 def dummy_arrays():
