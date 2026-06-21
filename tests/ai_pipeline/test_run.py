@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from tests.base_test import BaseTest
-from tests.ai_pipeline.conftest import make_yolo_result, make_unet_output
+from tests.conftest import make_yolo_result, make_unet_output
 
 
 class TestRunFallback(BaseTest):
