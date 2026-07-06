@@ -1,13 +1,16 @@
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Form
+from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.concurrency import run_in_threadpool
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, ForeignKey, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, ForeignKey, DateTime, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import IntegrityError
 from passlib.context import CryptContext
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from pydantic import BaseModel
+from typing import Optional
 from PIL import Image
 from threading import Lock
 from dotenv import load_dotenv
@@ -23,11 +26,20 @@ import asyncio
 import jwt
 import shutil
 import pika
+import uuid
+
 # =========================================================
 # 1. DATABASE CONFIGURATION (SQLite)
 # =========================================================
 SQLALCHEMY_DATABASE_URL = "sqlite:///./glaucoma_app.db"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -37,13 +49,27 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     hashed_password = Column(String)
 
+class Patient(Base):
+    __tablename__ = "patients"
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"))
+    first_name = Column(String)
+    last_name = Column(String)
+    email = Column(String, nullable=True)
+    avatar_kind = Column(String)
+    avatar_color = Column(String)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
 class History(Base):
     __tablename__ = "history"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=True)
     is_glaucoma = Column(Boolean)
     cup_to_disc_ratio = Column(Float)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    confidence = Column(Float, nullable=True)
+    image_url = Column(String, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 Base.metadata.create_all(bind=engine)
 
@@ -55,7 +81,7 @@ def get_db():
         db.close()
 
 # =========================================================
-# 2. IDENTITY & JWT BEARER TOKENS
+# 2. IDENTITY, JWT & SCHEMAS
 # =========================================================
 load_dotenv()
 
@@ -77,7 +103,7 @@ def get_password_hash(password):
 
 def create_access_token(data: dict):
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -94,8 +120,25 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     user = db.query(User).filter(User.username == username).first()
     return user
 
+# Pydantic Schemas for Patients
+class PatientCreate(BaseModel):
+    first_name: str
+    last_name: str
+    email: Optional[str] = None
+    avatar_kind: str
+    avatar_color: str
+
+class PatientUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    avatar_kind: Optional[str] = None
+    avatar_color: Optional[str] = None
+
 app = FastAPI()
-model_lock = Lock()  # Safeguard for lazy loading AI models
+model_lock = Lock() 
+
+os.makedirs("static/uploads", exist_ok=True)
 
 # =========================================================
 # 3. IDENTITY ENDPOINTS
@@ -120,26 +163,131 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     access_token = create_access_token(data={"sub": user.username})
     return {"access_token": access_token, "token_type": "bearer"}
 
+
+# =========================================================
+# 4. PATIENTS CRUD ENDPOINTS
+# =========================================================
+@app.post("/patients")
+def create_patient(patient: PatientCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    new_patient = Patient(
+        owner_id=current_user.id,
+        first_name=patient.first_name,
+        last_name=patient.last_name,
+        email=patient.email,
+        avatar_kind=patient.avatar_kind,
+        avatar_color=patient.avatar_color
+    )
+    db.add(new_patient)
+    db.commit()
+    db.refresh(new_patient)
+    return new_patient
+
+@app.get("/patients")
+def list_patients(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return db.query(Patient).filter(Patient.owner_id == current_user.id).all()
+
+@app.get("/patients/{patient_id}")
+def get_patient(patient_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    patient = db.query(Patient).filter(Patient.id == patient_id, Patient.owner_id == current_user.id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return patient
+
+@app.put("/patients/{patient_id}")
+def update_patient(patient_id: int, updates: PatientUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    patient = db.query(Patient).filter(Patient.id == patient_id, Patient.owner_id == current_user.id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    update_data = updates.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(patient, key, value)
+        
+    db.commit()
+    db.refresh(patient)
+    return patient
+
+@app.delete("/patients/{patient_id}")
+def delete_patient(patient_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    patient = db.query(Patient).filter(Patient.id == patient_id, Patient.owner_id == current_user.id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    
+    db.query(History).filter(History.patient_id == patient_id).delete()
+    db.delete(patient)
+    db.commit()
+    return {"message": "Patient and related history deleted successfully"}
+
+
+# =========================================================
+# 5. HISTORY & STATIC ENDPOINTS
+# =========================================================
 @app.get("/history")
-def get_user_history(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_user_history(patient_id: Optional[int] = None, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if not current_user:
         raise HTTPException(status_code=401, detail="You must be logged in to view history")
-    records = db.query(History).filter(History.user_id == current_user.id).all()
-    return {"history": [{"id": r.id, "is_glaucoma": r.is_glaucoma, "cdr": r.cup_to_disc_ratio, "date": r.created_at} for r in records]}
+    
+    query = db.query(History).filter(History.user_id == current_user.id)
+    if patient_id:
+        query = query.filter(History.patient_id == patient_id)
+        
+    records = query.all()
+    return {"history": [
+        {
+            "id": r.id, 
+            "patient_id": r.patient_id,
+            "is_glaucoma": r.is_glaucoma, 
+            "cdr": r.cup_to_disc_ratio, 
+            "confidence": r.confidence,
+            "image_url": r.image_url,
+            "date": r.created_at
+        } for r in records
+    ]}
 
+@app.get("/static/uploads/{filename}")
+def get_uploaded_image(filename: str, current_user: User = Depends(get_current_user)):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    file_path = os.path.join("static", "uploads", filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    return FileResponse(file_path)
 
 # =========================================================
-# 4. STREAMING ENDPOINT (NDJSON + DB)
+# 6. STREAMING ENDPOINT (NDJSON + DB + PATIENT + IMAGE SAVE)
 # =========================================================
 @app.post("/analyze-glaucoma-stream")
-async def analyze_glaucoma_stream(file: UploadFile = File(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def analyze_glaucoma_stream(
+    file: UploadFile = File(...), 
+    patient_id: Optional[int] = Form(None), 
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    domain = os.getenv("WEBSITE_HOSTNAME", "127.0.0.1:8000")
+    protocol = "https" if "azure" in domain.lower() else "http"
+    base_url = f"{protocol}://{domain}"
+
     async def event_generator():
         tmp_path = None
         try:
             yield json.dumps({"status": "progress", "step": 1, "message": "Image received..."}) + "\n"
             await asyncio.sleep(0.1)
 
-            # Stream directly to temp file (fixes memory issue)
             with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
                 shutil.copyfileobj(file.file, tmp)
                 tmp_path = tmp.name
@@ -156,13 +304,12 @@ async def analyze_glaucoma_stream(file: UploadFile = File(...), current_user: Us
                 yield json.dumps({"status": "progress", "step": 2, "message": "Loading AI models..."}) + "\n"
                 await asyncio.sleep(0.1)
 
-                # Lock to prevent concurrent initialization (fixes race condition)
                 with model_lock:
                     if 'glaucoma_pipeline' not in globals():
                         from pipeline import GlaucomaPipeline
                         glaucoma_pipeline = GlaucomaPipeline(
                             yolo_path=os.path.join(ai_dir, 'yolo', 'yolo-roi-v1.pt'),
-                            unet_path=os.path.join(ai_dir, 'unet', 'unetpp-seg-v1.pth'),
+                            unet_path=os.path.join(ai_dir, 'unet', 'unetpp_smdg_v3.pth'),
                             device='cpu'
                         )
 
@@ -175,6 +322,7 @@ async def analyze_glaucoma_stream(file: UploadFile = File(...), current_user: Us
 
             is_glaucoma, cup_to_disc_ratio, confidence = False, 0.0, 0.0
             open_cv_image = np.array(image)
+            image_url = None
 
             if result is not None:
                 full_img, crops, masks, cdr_val, _, _ = result
@@ -185,46 +333,73 @@ async def analyze_glaucoma_stream(file: UploadFile = File(...), current_user: Us
                     x1, y1, x2, y2 = crops[0]
                     roi = open_cv_image[y1:y2, x1:x2]
                     roi_h, roi_w = roi.shape[:2]
-                    roi[cv2.resize(masks[0][0], (roi_w, roi_h)) > 0.5] = roi[cv2.resize(masks[0][0], (roi_w, roi_h)) > 0.5] * 0.5 + np.array([0, 255, 0]) * 0.5
-                    roi[cv2.resize(masks[0][1], (roi_w, roi_h)) > 0.5] = roi[cv2.resize(masks[0][1], (roi_w, roi_h)) > 0.5] * 0.5 + np.array([255, 0, 0]) * 0.5
+                    
+                    mask_disc = cv2.resize(masks[0][0], (roi_w, roi_h)) > 0.5
+                    mask_cup = cv2.resize(masks[0][1], (roi_w, roi_h)) > 0.5
+                    
+                    roi[mask_disc] = roi[mask_disc] * 0.5 + np.array([0, 255, 0]) * 0.5
+                    roi[mask_cup] = roi[mask_cup] * 0.5 + np.array([255, 0, 0]) * 0.5
                     open_cv_image[y1:y2, x1:x2] = roi
 
             buffered = io.BytesIO()
-            Image.fromarray(open_cv_image).save(buffered, format="JPEG")
+            final_img = Image.fromarray(open_cv_image)
+            await run_in_threadpool(final_img.save, buffered, format="JPEG")
             img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
             if current_user:
-                db.add(History(user_id=current_user.id, is_glaucoma=is_glaucoma, cup_to_disc_ratio=cup_to_disc_ratio))
+                if patient_id:
+                    patient = db.query(Patient).filter(Patient.id == patient_id, Patient.owner_id == current_user.id).first()
+                    if not patient:
+                        yield json.dumps({"status": "error", "message": "Unauthorized or missing patient."}) + "\n"
+                        return
+
+                saved_filename = f"{uuid.uuid4()}.jpg"
+                save_path = os.path.join("static", "uploads", saved_filename)
+                await run_in_threadpool(final_img.save, save_path, format="JPEG")
+                image_url = f"{base_url}/static/uploads/{saved_filename}"
+
+                db.add(History(
+                    user_id=current_user.id, 
+                    patient_id=patient_id, 
+                    is_glaucoma=is_glaucoma, 
+                    cup_to_disc_ratio=cup_to_disc_ratio,
+                    confidence=confidence,
+                    image_url=image_url
+                ))
                 db.commit()
 
             yield json.dumps({
                 "status": "success", "step": 5, "message": "Analysis completed!",
-                "data": {"has_glaucoma": is_glaucoma, "confidence": confidence, "cup_to_disc_ratio": cup_to_disc_ratio, "image_base64": img_base64, "saved_to_db": bool(current_user)}
+                "data": {
+                    "has_glaucoma": is_glaucoma, 
+                    "confidence": confidence, 
+                    "cup_to_disc_ratio": cup_to_disc_ratio, 
+                    "image_base64": img_base64, 
+                    "image_url": image_url,
+                    "saved_to_db": bool(current_user)
+                }
             }) + "\n"
 
         except Exception as e:
-            # Hide raw exceptions from client
+            import traceback
+            error_trace = traceback.format_exc()
+            print(error_trace)
             yield json.dumps({"status": "error", "message": "An internal server error occurred."}) + "\n"
         finally:
-            # Always clean up temp file (fixes memory/disk leak)
             if tmp_path and os.path.exists(tmp_path):
-                os.remove(tmp_path)
+                await run_in_threadpool(os.remove, tmp_path)
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")
 
 # =========================================================
-# 5. DISTRIBUTED SYSTEM DEMO (LAVINMQ / RABBITMQ)
+# 7. DISTRIBUTED SYSTEM DEMO (LAVINMQ / RABBITMQ)
 # =========================================================
-
 @app.post("/demo-distributed")
 async def demo_distributed_system(file: UploadFile = File(...)):
     amqp_url = os.getenv("AMQP_URL")
 
     if not amqp_url:
-        return {
-            "status": "error",
-            "message": "Missing AMQP_URL environment variable on Azure!"
-        }
+        return {"status": "error", "message": "Missing AMQP_URL environment variable on Azure!"}
 
     try:
         contents = await file.read()
