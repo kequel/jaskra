@@ -1,9 +1,9 @@
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Form
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.concurrency import run_in_threadpool
-from fastapi.staticfiles import StaticFiles
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, ForeignKey, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, ForeignKey, DateTime, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import IntegrityError
@@ -33,6 +33,13 @@ import uuid
 # =========================================================
 SQLALCHEMY_DATABASE_URL = "sqlite:///./glaucoma_app.db"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -128,14 +135,10 @@ class PatientUpdate(BaseModel):
     avatar_kind: Optional[str] = None
     avatar_color: Optional[str] = None
 
-
 app = FastAPI()
 model_lock = Lock() 
 
-# Mount static folder for saved images
 os.makedirs("static/uploads", exist_ok=True)
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
 
 # =========================================================
 # 3. IDENTITY ENDPOINTS
@@ -230,7 +233,7 @@ def delete_patient(patient_id: int, current_user: User = Depends(get_current_use
 
 
 # =========================================================
-# 5. HISTORY ENDPOINT (WITH PATIENT FILTER)
+# 5. HISTORY & STATIC ENDPOINTS
 # =========================================================
 @app.get("/history")
 def get_user_history(patient_id: Optional[int] = None, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -254,6 +257,16 @@ def get_user_history(patient_id: Optional[int] = None, current_user: User = Depe
         } for r in records
     ]}
 
+@app.get("/static/uploads/{filename}")
+def get_uploaded_image(filename: str, current_user: User = Depends(get_current_user)):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    file_path = os.path.join("static", "uploads", filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    return FileResponse(file_path)
 
 # =========================================================
 # 6. STREAMING ENDPOINT (NDJSON + DB + PATIENT + IMAGE SAVE)
@@ -330,15 +343,21 @@ async def analyze_glaucoma_stream(
 
             buffered = io.BytesIO()
             final_img = Image.fromarray(open_cv_image)
-            final_img.save(buffered, format="JPEG")
+            await run_in_threadpool(final_img.save, buffered, format="JPEG")
             img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-            saved_filename = f"{uuid.uuid4()}.jpg"
-            save_path = os.path.join("static", "uploads", saved_filename)
-            final_img.save(save_path, format="JPEG")
-            image_url = f"{base_url}/static/uploads/{saved_filename}"
-
             if current_user:
+                if patient_id:
+                    patient = db.query(Patient).filter(Patient.id == patient_id, Patient.owner_id == current_user.id).first()
+                    if not patient:
+                        yield json.dumps({"status": "error", "message": "Unauthorized or missing patient."}) + "\n"
+                        return
+
+                saved_filename = f"{uuid.uuid4()}.jpg"
+                save_path = os.path.join("static", "uploads", saved_filename)
+                await run_in_threadpool(final_img.save, save_path, format="JPEG")
+                image_url = f"{base_url}/static/uploads/{saved_filename}"
+
                 db.add(History(
                     user_id=current_user.id, 
                     patient_id=patient_id, 
@@ -368,7 +387,7 @@ async def analyze_glaucoma_stream(
             yield json.dumps({"status": "error", "message": "An internal server error occurred."}) + "\n"
         finally:
             if tmp_path and os.path.exists(tmp_path):
-                os.remove(tmp_path)
+                await run_in_threadpool(os.remove, tmp_path)
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")
 
