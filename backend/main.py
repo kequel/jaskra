@@ -223,7 +223,6 @@ def delete_patient(patient_id: int, current_user: User = Depends(get_current_use
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
     
-    # Usunięcie wyników pacjenta przed usunięciem samego pacjenta
     db.query(History).filter(History.patient_id == patient_id).delete()
     db.delete(patient)
     db.commit()
@@ -266,7 +265,6 @@ async def analyze_glaucoma_stream(
     current_user: User = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
-    # Określenie domeny do wygenerowania absolutnego URL do obrazka
     domain = os.getenv("WEBSITE_HOSTNAME", "127.0.0.1:8000")
     protocol = "https" if "azure" in domain.lower() else "http"
     base_url = f"{protocol}://{domain}"
@@ -335,13 +333,11 @@ async def analyze_glaucoma_stream(
             final_img.save(buffered, format="JPEG")
             img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-            # Fizyczny zapis przetworzonego zdjęcia na dysku
             saved_filename = f"{uuid.uuid4()}.jpg"
             save_path = os.path.join("static", "uploads", saved_filename)
             final_img.save(save_path, format="JPEG")
             image_url = f"{base_url}/static/uploads/{saved_filename}"
 
-            # Zapis do bazy danych
             if current_user:
                 db.add(History(
                     user_id=current_user.id, 
@@ -368,8 +364,8 @@ async def analyze_glaucoma_stream(
         except Exception as e:
             import traceback
             error_trace = traceback.format_exc()
-            print(error_trace) # To poleci do logów Azure
-            yield json.dumps({"status": "error", "message": f"CRASH: {str(e)}"}) + "\n"
+            print(error_trace)
+            yield json.dumps({"status": "error", "message": "An internal server error occurred."}) + "\n"
         finally:
             if tmp_path and os.path.exists(tmp_path):
                 os.remove(tmp_path)
