@@ -29,12 +29,17 @@ class GlaucomaPipeline:
         ).to(self.device)
         
         # Load model weights from state dict
-        checkpoint = torch.load(unet_path, map_location=self.device)
-        self.unet.load_state_dict(checkpoint['model_state_dict'])
+        checkpoint = torch.load(unet_path, map_location='cpu')
+
+        if 'model_state_dict' in checkpoint:
+            self.unet.load_state_dict(checkpoint['model_state_dict'])
+        else:
+            self.unet.load_state_dict(checkpoint)
+            
         self.unet.eval()
         
         # Preprocessing constants
-        self.img_size = 512
+        self.img_size = 256
         self.mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
         self.std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
