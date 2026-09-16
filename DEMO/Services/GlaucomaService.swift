@@ -67,17 +67,30 @@ final class GlaucomaService {
 
     // MARK: Analysis (simulated progress + a plausible generated result)
 
-    /// Simulates the same step sequence the real backend streams, then
-    /// returns a result with a hand-drawn cup/disc overlay on the photo.
+    /// Simulates the same step sequence the real backend streams (slowed
+    /// down for a live demo — ~3s per step), then returns a result. If the
+    /// picked photo is recognized as one of our own reference fundus photos
+    /// (see ImageFingerprint.swift), returns the real pipeline result for
+    /// it instead of a random mock.
     func analyzeStreaming(
         image: UIImage,
         token: String?,
         onStep: @escaping (Int) -> Void
     ) async throws -> GlaucomaResult {
-        let stepDelaysNs: [UInt64] = [400_000_000, 550_000_000, 650_000_000, 450_000_000, 350_000_000]
-        for (index, delay) in stepDelaysNs.enumerated() {
-            await MainActor.run { onStep(index + 1) }
-            try await Task.sleep(nanoseconds: delay)
+        let stepDelayNs: UInt64 = 3_000_000_000
+        for step in 1...5 {
+            await MainActor.run { onStep(step) }
+            try await Task.sleep(nanoseconds: stepDelayNs)
+        }
+
+        if let matched = ImageFingerprint.matchingSeed(for: image) {
+            return GlaucomaResult(
+                hasGlaucoma: matched.hasGlaucoma,
+                confidence: matched.confidence,
+                cupToDiscRatio: matched.cdr,
+                imageBase64: matched.imageBase64,
+                maskImageBase64: matched.maskBase64
+            )
         }
 
         let cdr = Double.random(in: 0.28...0.82)
