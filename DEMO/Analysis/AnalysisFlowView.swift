@@ -24,6 +24,7 @@ struct AnalysisFlowView: View {
     @State private var processedImage: UIImage?
     @State private var step = 0
     @State private var result: GlaucomaResult?
+    @State private var maskImage: UIImage?
     @State private var errorMessage = ""
     /// Patient the (initially unsaved) result got assigned to after the fact.
     @State private var savedPatient: Patient?
@@ -69,7 +70,7 @@ struct AnalysisFlowView: View {
         .sheet(isPresented: $showAssignSheet) {
             PatientPickerView { picked in
                 if let result {
-                    store.addRecord(for: picked, result: result, image: processedImage)
+                    store.addRecord(for: picked, result: result, image: processedImage, maskImage: maskImage)
                 }
                 savedPatient = picked
                 showAssignSheet = false
@@ -266,10 +267,12 @@ struct AnalysisFlowView: View {
                     onStep: { step = $0 }
                 )
                 let processed = decodeImage(res.imageBase64)
+                let mask = res.maskImageBase64.flatMap(decodeImage)
                 if let patient {
-                    store.addRecord(for: patient, result: res, image: processed)
+                    store.addRecord(for: patient, result: res, image: processed, maskImage: mask)
                 }
                 self.processedImage = processed
+                self.maskImage = mask
                 self.result = res
                 self.phase = .result
             } catch is CancellationError {
@@ -284,6 +287,7 @@ struct AnalysisFlowView: View {
     private func resetToPicking() {
         selectedImage = nil
         processedImage = nil
+        maskImage = nil
         result = nil
         savedPatient = nil
         step = 0
