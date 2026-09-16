@@ -88,8 +88,8 @@ final class GlaucomaService {
                 hasGlaucoma: matched.hasGlaucoma,
                 confidence: matched.confidence,
                 cupToDiscRatio: matched.cdr,
-                imageBase64: matched.imageBase64,
-                maskImageBase64: matched.maskBase64
+                imageBase64: matched.cleanImageBase64,
+                maskImageBase64: matched.cleanMaskBase64
             )
         }
 

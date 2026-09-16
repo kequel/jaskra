@@ -223,16 +223,15 @@ final class PatientStore: ObservableObject {
     }
 
     private func addSeedRecord(_ seed: DemoSeedPatient, for patient: Patient, date: Date) {
-        guard let imageData = Data(base64Encoded: seed.imageBase64),
-              let image = UIImage(data: imageData) else { return }
-        let maskImage = Data(base64Encoded: seed.maskBase64).flatMap { UIImage(data: $0) }
+        guard let image = seed.decodedImage else { return }
+        let maskImage = seed.decodedMaskImage
 
         let result = GlaucomaResult(
             hasGlaucoma: seed.hasGlaucoma,
             confidence: seed.confidence,
             cupToDiscRatio: seed.cdr,
-            imageBase64: seed.imageBase64,
-            maskImageBase64: seed.maskBase64
+            imageBase64: seed.cleanImageBase64,
+            maskImageBase64: seed.cleanMaskBase64
         )
         addRecord(for: patient, result: result, image: image, maskImage: maskImage, date: date)
     }

@@ -75,9 +75,3 @@ enum ImageFingerprint {
         return best.seed
     }
 }
-
-extension DemoSeedPatient {
-    var decodedRawImage: UIImage? {
-        Data(base64Encoded: rawImageBase64).flatMap { UIImage(data: $0) }
-    }
-}
