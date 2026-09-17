@@ -1,0 +1,390 @@
+I. Sieci Mobilne i Standardy 802 (Mobile Networks)Charakterystyka i Sprzęt:Najpopularniejszymi typami sieci bezprzewodowych są sieci komórkowe (cellular) oraz sieci sensorowe.  Pasma ISM (433 MHz, 868 MHz, 2.4 GHz) są wykorzystywane do wszelkich rozwiązań zdalnych.  Technologia Software Defined Radio (SDR) pozwala na zaimplementowanie prawie każdego rozwiązania z zakresu radiokomunikacji przy użyciu jednego urządzenia.  Bezpieczeństwo sieci komórkowych (ISM) zależy od mechanizmów protokołowych i sprzętowych/programowych, a nie od samej częstotliwości.  Klasyfikacja Protokołów 802:Standard 802.11 definiuje sieci WLAN (a/b/g/n/ac/ax/be).  Standard 802.15 definiuje sieci WPAN, w tym technologię Bluetooth (802.15.1).  Standard 802.16 to sieć WiMax, dzieląca się na wersję stacjonarną (802.16d) oraz mobilną (802.16e).  II. WiMax (802.16) - Architektura i BezpieczeństwoArchitektura Sieci: Sieć WiMax składa się z co najmniej jednej stacji bazowej (BS) oraz wielu stacji klienckich (SS - Subscriber Station).  Protokoły Zarządzania Kluczami (PKM):Wersja 802.16d wykorzystuje PKMv1 (oparty na RSA), podczas gdy 802.16e używa PKMv2.  Dla autoryzacji stacje posiadają certyfikat X.509, z którego klucz publiczny RSA jest wbudowany w sprzęt.  PKMv1 korzysta z algorytmów DES i 3DES, brakuje w nim uwierzytelniania stacji bazowej (BS) oraz chroni hashe przy pomocy algorytmu SHA-1 (podatnego na kolizje).  PKMv2 poprawia te błędy, stosując tryb CCM (Counter Mode Cipher Block Chaining Message Authentication Code) oraz zastępując HMAC protokołem CMAC.  Klucze i Powiązania Bezpieczeństwa (Security Associations - SA):Wyróżnia się trzy typy SA: Główne (Primary), Statyczne (Static) oraz Dynamiczne (Dynamic).  Połączenie wymaga użycia klucza autoryzacyjnego (AK) przesyłanego przez BS do stacji klienckiej.  Ostateczne szyfrowanie odbywa się za pomocą kluczy TEK (Transmission Encryption Key), których uzyskanie wymaga poprawnej weryfikacji przez HMAC.  III. Standard 802.11 (Wi-Fi) - Tryby, Autoryzacja i AtakiTryby Pracy:Ad hoc: Wykorzystuje protokół DCF (Distributed Coordination Function), będący wariantem CSMA/CA.  Infrastruktura: Sieć korzysta z protokołu PCF (Point Coordination Function), który jest zmechanizowany centralnie na zasadzie odpytywania stacji.  Protokoły Bezpieczeństwa Wi-Fi:WEP: Używa szyfru strumieniowego RC4, wektora inicjującego IV o długości 24 bitów oraz sumy kontrolnej CRC32. Z uwagi na małą przestrzeń IV wektor ten często ulega kolizji.  WPA: Korzysta z szyfru RC4 (klucze 128-bitowe) wraz z protokołem TKIP (Temporal Key Integrity Protocol), dynamicznie zmieniającym klucze.  WPA2/802.11i: Wymaga stosowania CCMP (Counter Mode with Cipher Block Authentication Code Protocol) oraz algorytmu AES.  WPA3: Wymaga min. trybu Counter mode CBC AES (128 bitów) lub GCB AES (192 bity). Częścią tego standardu jest także OWE (Opportunistic Wireless Encryption) do szyfrowania sesji bez uwierzytelniania.  Uwierzytelnianie (802.1x):Standard obejmuje trzy strony: Suplikanta (Klienta), Autentykatora (Punkt dostępowy) i Serwer Uwierzytelniający (np. RADIUS).  Wykorzystuje protokoły EAP, m.in. EAP-TLS (w tunelu SSL/TLS za pomocą certyfikatów), PEAP (najpierw autentykacja serwera, potem klienta), EAP-TTLS, a także EAP-MD5, LEAP, EAP-FAST (Cisco) czy EAP-SIM / EAP-AKA dla sieci GSM/3G.  Wektory Ataków na Wi-Fi:Kradzież sesji i spoofing MAC: Atakujący modyfikuje adres MAC, zmuszając klienta do rozłączenia przy użyciu fałszywych pakietów DEAUTH i wykonując w ten sposób atak Man-in-the-Middle (MitM) z użyciem fałszywego AP.  Łamanie WEP/WPA: Ataki statystyczne i słownikowe (brute force dla krótkich haseł WPA-PSK), jak również ataki bazujące na przewidywalnych wektorach IV.  Ataki DoS: Zalewanie pamięci AP fałszywymi żądaniami autoryzacji (Associate flood).  Ataki na "Sleep Mode": Wysłanie fałszywych żądań wybudzenia by przechwycić pakiety przetrzymywane dla stacji mobilnej.  IV. Transakcje Elektroniczne (Electronic Transactions)Narzędzia i Metody:Transakcje przeprowadzane są za pomocą infrastruktury kluczy publicznych (PKI), gdzie klasyczne szyfrowanie symetryczne (np. AES) zapewnia poufność danych, a algorytmy asymetryczne (np. RSA) wykorzystywane są do uwierzytelniania i podpisów cyfrowych.  Protokoły Transakcyjne:Standard SET (Secure Electronic Transactions): Wprowadza koncept "podwójnego podpisu", który pozwala ukryć szczegóły zamówienia przed bankiem oraz detale karty płatniczej przed sprzedawcą.  3D-Secure: Wymaga dodatkowego potwierdzenia płatności przy użyciu dodatkowego kanału (np. aplikacji mobilnej) dla kart płatniczych.  OTP (Internet Open Trading Protocol): Integruje klasyczne zwyczaje handlowe (negocjacje, formy dostawy) w świecie wirtualnym.  Pieniądze Cyfrowe i Systemy:Wirtualna gotówka powinna zapewniać anonimowość, niezależność, podział, możliwość transakcji offline i ochronę przed podwójnym wydaniem.  ECASH: Monety są chowane i podpisywane "w ciemno" przez bank, by zachować anonimowość zakupów.  Opayo / Sage Pay: Proces zakłada użycie Serwerów Gotówkowych (Currency Servers), które weryfikują certyfikaty w bazie danych.  CAFE / EPI: Rozwiązanie offline oparte o karty inteligentne (smart cards) wyposażone w koprocesor „Guardian” do ochrony przed duplikacją płatności.  Kryptowaluty (Cryptocurrency):Funkcjonują w architekturze P2P i służą jako zdecentralizowana baza danych chroniona protokołami kryptograficznymi (np. Bitcoin, Ethereum).  Adres Bitcoin generowany jest w oparciu o algorytm ECDSA na krzywej secp256k1. 256-bitowy klucz publiczny zostaje przekształcony przez hashe SHA-256 oraz RIPEMD-160, a finalnie zakodowany przy pomocy Base58Check.  Standardy Branżowe:PCI DSS (Payment Card Industry Data Security Standard): Definiuje 12 wymagań weryfikacyjnych dla operatorów płatności w celu ochrony danych kart, w tym: zakaz używania domyślnych haseł, instalację zapór sieciowych (firewall) i regularne testowanie.  
+
+
+I. Transakcje Internetowe (Electronic Transactions)Definicja: Transakcja to procedura realizowana w formie protokołu przez co najmniej dwie strony, z możliwym udziałem arbitra lub zaufanej strony trzeciej (TTP).  Rodzaje transakcji: Transakcje bazodanowe, wymiana dokumentów, podpisywanie umów, transakcje finansowe (płatności, transfery) oraz e-commerce.  Zarządzanie transakcjami: Obejmuje kontrolę poprawności, rejestrację, sprawdzanie wiarygodności stron (identyfikacja i autentykacja), tworzenie certyfikatów i kluczy oraz nadzór nad procesem. Działania te realizują strony transakcji oraz zaufane strony trzecie.  Narzędzia kryptograficzne:Algorytmy symetryczne (np. AES) zapewniające poufność.  Algorytmy asymetryczne (np. RSA) do podpisów cyfrowych i uwierzytelniania.  Funkcje skrótu (hash) i generatory pseudolosowe.  II. Protokoły PłatnościStandard SET (Secure Electronic Transactions):Stworzony w 1997 r. przez m.in. VISA i MasterCard, oparty na infrastrukturze PKI.  Wykorzystuje podwójny podpis cyfrowy ($S_A(H(H(M1), H(M2)))$), który ukrywa dane karty przed sprzedawcą oraz specyfikację zakupów przed bankiem.  Obecnie wyparty m.in. przez promowany przez VISA standard 3D-Secure.  3D-Secure:Dodatkowy protokół autoryzacji wykorzystujący odrębny kanał (np. aplikację mobilną) do potwierdzania transakcji.  Opiera się na wzajemnym uwierzytelnianiu, komunikatach XML i tunelach SSL.  OTP (Internet Open Trading Protocol):Protokół integracyjny przenoszący klasyczne zwyczaje handlowe do sieci (oferty, negocjacje, formy płatności, paragony).  III. Pieniądze Cyfrowe (Digital Cash)Cechy idealnego systemu: Niezależność od lokalizacji, bezpieczeństwo (ochrona przed kopiowaniem), prywatność (anonimowość), możliwość działania off-line, transferowalność, podzielność, a także skalowalność i akceptowalność.  Historyczne/Przykładowe systemy:ECASH (1994-1998): W pełni anonimowy system, gdzie monety były ukrywane, podpisywane w ciemno przez bank i przesyłane do portfela użytkownika.  Opayo (Sage Pay): Opiera się na serwerach walutowych (Currency Servers), które kontrolują cyfrowe pieniądze pod kątem podwójnego wydania. Pieniądz to podpisany kluczem publicznym komunikat.  CAFE / EPI: Projekt europejski oparty na płatnościach off-line za pomocą kart inteligentnych (smart cards) wyposażonych w koprocesor zabezpieczający "Guardian".  IV. Kryptowaluty (Cryptocurrency)Charakterystyka: Rozproszony system księgowy (P2P), gdzie stan posiadania kontrolowany jest przez właściciela klucza prywatnego.  Generowanie adresu Bitcoin:Wykorzystanie algorytmu ECDSA (standard secp256k1) do wygenerowania 256-bitowego klucza prywatnego i publicznego.  Przekształcenie klucza publicznego przez funkcję SHA-256 oraz RIPEMD-160 (uzyskanie 160-bitowego ciągu).  Dodanie 4 bajtów sumy kontrolnej i bajtu wersji (200-bitowy adres).  Zakodowanie całości algorytmem Base58Check.  V. Bezpieczeństwo Danych Kart (PCI DSS)Standard PCI DSS: Zawiera 12 rygorystycznych wymagań dla operatorów, w tym m.in.: poprawną konfigurację firewalla, zakaz używania domyślnych haseł, szyfrowanie transmisji, ochronę antywirusową, śledzenie zasobów sieciowych i ograniczanie dostępu fizycznego.  VI. Zarządzanie Kluczami i Infrastruktura PKI (Public Key Infrastructure)Procedury zarządzania: Generowanie kluczy, dystrybucja certyfikatów, negocjacja sesji (Diffie-Hellman, protokół STS), przechowywanie (escrowing - przetrzymywanie kluczy przez TTP) oraz unieważnianie.  Modele PKI:X.509: Tworzy globalną strukturę hierarchiczną (drzewo) z korzeniem ROOT CA. Posiada listy unieważnionych certyfikatów (CRL) utrzymywane przez CA. Weryfikacja następuje przez tzw. "łańcuch certyfikatów". Opiera się na systemie nazw X.500.  PGP: Pakiet oprogramowania tworzący sieć "peer-to-peer" (Web of Trust) bez centralnego CA. Użytkownicy lokalnie przechowują i potwierdzają klucze innych osób, jednak problematyczne jest ich unieważnianie.  SPKI / SDSI: Infrastruktury rozproszone oparte na lokalnych przestrzeniach nazw. SPKI skupia się na kontroli dostępu za pomocą certyfikatów autoryzacji (AC) i certyfikatów nazw (NC). Posiada czasowe listy CRL i bazuje na relacjach wyrażonych jako krotki (5-krotka w SPKI). Rolę CA pełnią sami użytkownicy.  
+
+# Bezpieczeństwo systemów komputerowych: Bezpieczeństwo poczty elektronicznej (2026)
+
+**Autor:** PhD E.Eng Piotr Rajchowski
+
+---
+
+## 1. Popularne zagrożenia sieciowe (Internetowe)
+Prezentacja opisuje szereg zagrożeń, z jakimi borykają się sieci komputerowe:
+
+* [cite_start]**TCP Spoofing / Sequence Number Guessing:** Przewidywanie sekwencji numerów TCP w celu podszycia się pod zaufany host[cite: 1, 2, 3].
+* [cite_start]**Sniffing:** Odczytywanie danych przesyłanych w sieci, dla których nie były one przeznaczone (aktywne i pasywne)[cite: 4].
+* [cite_start]**Impersonating (Spoofing):** Podszywanie się pod inne urządzenia w każdej warstwie protokołu IP[cite: 5].
+* **Rodzaje spoofingu:**
+    * [cite_start]MAC addresses[cite: 6].
+    * [cite_start]ARP (Address Resolution Protocol)[cite: 6].
+    * [cite_start]DNS (Domain Names System) – przejęcie kontroli nad serwerem DNS[cite: 6].
+    * [cite_start]IP routing – wymuszanie błędnej ścieżki pakietów[cite: 7].
+    * [cite_start]WWW – fałszywe strony internetowe, nadużycia serwerów proxy[cite: 7].
+* [cite_start]**DoS (Denial of Service):** Przeciążanie zasobów systemowych lub sieciowych (np. ataki na WWW, SMTP, DNS)[cite: 9, 10].
+* [cite_start]**Port scanning:** Przeszukiwanie portów w poszukiwaniu podatności[cite: 11].
+* [cite_start]**Zagrożenia przeglądarek:** Kod HTML, wtyczki i moduły z niepewnych źródeł[cite: 11].
+
+---
+
+## 2. Bezpieczeństwo serwerów WWW i Java
+* [cite_start]**Zabezpieczenia Java:** Wykorzystanie kryptografii (RSA, AES, ChaCha20, SHA-3), PKI (X.509, CRLs) oraz JSSE dla SSL/TLS[cite: 12, 13].
+* **Bezpieczna konfiguracja serwera WWW:**
+    * [cite_start]Usunięcie niepotrzebnych kompilatorów (np. gcc/g++)[cite: 14].
+    * [cite_start]Właściwa konfiguracja usług (ostrożność przy FTP, SSH)[cite: 15, 16].
+    * [cite_start]Implementacja zabezpieczeń na poziomie aplikacji, serwera (np. dyrektywa Apache `<Directory>`) oraz systemu[cite: 17, 18, 19].
+    * [cite_start]Stosowanie firewalla i środowisk chroot[cite: 19].
+
+---
+
+## 3. VPN (Virtual Private Network)
+* [cite_start]Służy do tworzenia bezpiecznych kanałów komunikacji w środowiskach niepewnych[cite: 46].
+* [cite_start]Technologie: SSL VPN (przeglądarka, OpenVPN) oraz IPSec[cite: 47].
+
+---
+
+## 4. Protokoły SSL/TLS
+* [cite_start]**Zadania:** Szyfrowanie, zapewnienie integralności danych i uwierzytelnianie[cite: 48, 49].
+* [cite_start]**Struktura:** Złożony z podprotokołów (Handshake, Record, Alert, Cipher Change)[cite: 50].
+* [cite_start]**TLS 1.3:** Uproszczony proces uzgadniania (handshake), szybsze nawiązywanie połączenia (0-RTT), wyższe bezpieczeństwo[cite: 70, 81, 83].
+* [cite_start]**DTLS:** Wersja dla protokołów datagramowych (UDP)[cite: 87, 88].
+
+---
+
+## 5. Bezpieczeństwo poczty elektronicznej
+* [cite_start]**Podstawowe komponenty:** MUA (klient poczty), MSA, MTA (serwer poczty), MDA, MAA[cite: 96, 97, 98, 99].
+* [cite_start]**Wymagania:** Poufność, autentyczność, integralność, niezaprzeczalność[cite: 113].
+* **Technologie zabezpieczające:**
+    * [cite_start]**PGP/GnuPG:** Szyfrowanie i podpisywanie (klucze publiczne/prywatne, pierścienie kluczy)[cite: 114, 121, 156].
+    * [cite_start]**PEM (Privacy Enhanced Mail):** Oparte na hierarchii certyfikatów CA i standardzie X.509[cite: 132, 136].
+    * [cite_start]**S/MIME:** Następca PEM, wspierający uwierzytelnianie, integralność i poufność (często zintegrowany z klientami poczty jak Outlook)[cite: 158, 159, 164].
+    * [cite_start]**DKIM (DomainKeys Identified Mail):** Pozwala organizacji potwierdzić odpowiedzialność za wysłaną wiadomość (podpis w nagłówku, publiczny klucz w DNS), co pomaga w walce z phishingiem i spoofingiem[cite: 174, 175, 178, 179].
+
+
+# Data Centers Interconnections - Podsumowanie
+
+## 1. Wstęp i Koncepcja
+* [cite_start]**Współczesne centra danych:** Zakłada się, że są one rozproszone, a nie scentralizowane[cite: 117].
+* [cite_start]**Główny cel:** Zapewnienie niezawodnej i szybkiej wymiany danych między centrami [cite: 118] [cite_start]oraz dostarczanie usług klientom o zróżnicowanych potrzebach przy zachowaniu jakości usług niezależnie od obciążenia[cite: 119].
+* **Koncepcja rozproszonych centrów danych:**
+    * [cite_start]Wymaga połączenia co najmniej dwóch jednostek[cite: 134].
+    * [cite_start]Jednostki aktywnie i dynamicznie równoważą obciążenie[cite: 135].
+    * [cite_start]Zapewniają usługi w tle, takie jak adaptacyjna lokalizacja danych czy kopie zapasowe[cite: 136].
+    * [cite_start]Cel: minimalizacja opóźnień i maksymalizacja stabilności[cite: 137].
+
+## 2. Klasyfikacja Połączeń
+Połączenia klasyfikuje się na trzy grupy:
+* [cite_start]**Duże:** np. połączenia podmorskie (międzykontynentalne)[cite: 143].
+* [cite_start]**Średnie:** do 100 km, np. połączenia między centrami danych w regionie miejskim[cite: 143].
+* [cite_start]**Małe:** w obrębie małych regionów (kilka kilometrów) lub między oddziałami jednego centrum[cite: 144].
+* [cite_start]**Typowy standard:** Stosuje się co najmniej dwie niezależne linie (od różnych dostawców lub niezależne)[cite: 154].
+
+## 3. Aspekty Techniczne
+* **Physical Layer:**
+    * [cite_start]OTN (Optical Transport Network) – pakowanie danych w jeden lub wiele strumieni (do 400 Gb/s)[cite: 169, 170].
+    * [cite_start]"Extended" Ethernet (Data center bridging) – minimalizacja utraty pakietów[cite: 171, 172].
+    * [cite_start]CWDM (Coarse Wavelength Division Multiplexing) – zwiększanie przepustowości[cite: 173, 174].
+* [cite_start]**Architektura sieci:** Ewolucja w kierunku **leaf-spine** w celu poprawy skalowalności i obniżenia opóźnień[cite: 183, 185].
+* [cite_start]**ROADM:** Wykorzystywane do połączeń lokalnych lub dzielenia strumieni danych[cite: 213].
+* [cite_start]**Benchmarking:** Testowanie przepustowości, opóźnień, jittera i utraty ramek (np. standard RFC 2544)[cite: 214, 215].
+
+## 4. Synchronizacja Sieciowa
+[cite_start]Synchronizacja czasu jest kluczowa dla orkiestracji zdarzeń i korelacji danych[cite: 218].
+* **Metody synchronizacji:**
+    * [cite_start]GNSS (globalna dystrybucja czasu)[cite: 219].
+    * [cite_start]Protokoły lokalne: NTP (Network Time Protocol) oraz PTP (Precision Time Protocol)[cite: 220].
+* **NTP:**
+    * [cite_start]Oparty na hierarchii drzewa[cite: 222].
+    * Dokładność ok. [cite_start]100 ms[cite: 230].
+    * [cite_start]Zagrożenia: ataki man-in-the-middle, opóźnienia pakietów UDP[cite: 225, 226].
+* **PTP (IEEE 1588):**
+    * [cite_start]Oparty na architekturze master-slave[cite: 232].
+    * [cite_start]Zapewnia dokładność nanosekundową[cite: 231].
+    * [cite_start]Zagrożenia: DoS, spoofing, modyfikacja pakietów[cite: 238].
+
+## 5. Zagrożenia GNSS (Jamming/Spoofing)
+* [cite_start]**Jamming (zagłuszanie):** Zakłócanie sygnału GNSS (np. za pomocą SDR) w celu uniemożliwienia estymacji pozycji/czasu[cite: 63, 64].
+* [cite_start]**Spoofing:** Emisja fałszywego sygnału imitującego konstelację satelitów w celu wywołania błędnej estymacji pozycji/czasu[cite: 65, 70].
+* **Obrona:**
+    * [cite_start]Galileo OS-NMA (autentykacja wiadomości nawigacyjnych)[cite: 89].
+    * [cite_start]Wykorzystanie protokołów takich jak TESLA (lightweight, dla komunikacji stratnej)[cite: 93, 94].
+    * [cite_start]Analiza spójności komunikatów (np. NMEA)[cite: 81, 95].
+
+
+mindmap
+  root((Practical Security Issues 2026))
+    Slide 1 - Introduction
+      Security of Computer Systems 2026
+      Practical Security Issues v1.0
+      Lecturer Piotr Rajchowski
+      Date 10.05.2026
+
+    Slide 2 - AI Agent Environments
+      Development of AI agents
+      Need for isolated or dedicated data exchange environments
+      Example Moltbook
+      Analysis based on concept not content
+      Framework where
+        Entries created by AI agents
+        Entries accessed by AI agents
+        Entries reused by AI agents
+
+    Slide 3 - OpenClaw Basics
+      Moltbook based on OpenClaw
+      OpenClaw
+        Agent perspective
+        Server software perspective
+      Not AI model
+      Not bot
+      WebSocket communication
+      Data exchange between services
+
+    Slide 4 - Service Access Model
+      Access methods important
+      User accesses service through OpenClaw
+      OpenClaw accesses LM model
+      Skills
+        ML code extensions
+        Link models with OpenClaw
+      Theory
+        Local OpenClaw
+        External ML models
+      Practice
+        Both communications often external
+
+    Slide 5 - AI Agent Attacks
+      Skills and models usually not attacked directly
+      Attack vector
+        Prompt injected messages
+      Malicious content published
+      Message may
+        Remain unnoticed
+        Gain importance
+        Be accessed by other agents
+
+    Slide 6 - Prompt Injection Effects
+      Public content contains injected prompts
+      AI agent behavior influenced
+      Prompts may be plain text
+      Malicious agents can manipulate visibility
+      Detection of malicious prompts difficult
+
+    Slide 7 - Hidden Malicious Prompts
+      Plain text appearance
+      No obvious malicious indicators
+      Actions appear normal
+      Security consequences
+        Data exchange manipulation
+        Decision biasing
+      User-granted privileges increase risk
+
+    Slide 8 - Moltbook Security Issues
+      Database access issues
+      Authentication keys exposed
+      Agents had RW permissions
+      Security companies scan
+        Skills
+        Messages
+      Verified OpenClaw libraries planned
+      Main challenge
+        Threat exists in content
+        Not in code
+
+    Slide 9 - Attack Scenario
+      Typical user permissions abused
+      Hidden prompts inside normal content
+      User launches standard task
+      Examples
+        Code checking
+        Code review
+        Code submission
+        Transactions
+
+    Slide 10 - Agent Compromise
+      Agent unaware of malicious prompt
+      API communication occurs normally
+      Hidden activities executed
+      Possible outcomes
+        Data exfiltration
+        Secondary communication with attacker
+        Modified user interactions
+
+    Slide 11 - Major AI Agent Threats
+      Prompt injection
+      Decision biasing
+      Excessive privileges
+      Environment threats
+      Framework threats
+      Input data modification
+      Code execution
+
+    Slide 12 - AI Interaction Control
+      New control methods required
+      Cloudflare AI Labyrinth
+      Endless link structures
+      Monitoring trigger
+      Scraping control
+      User decides
+        Whether scraping allowed
+        How much scraping allowed
+
+    Slide 13 - JA3 Fingerprinting
+      Monitor agent and bot access
+      JA3 fingerprinting
+      Identifies
+        Users
+        Bots
+        Agents
+      Based on TLS session characteristics
+      Known fingerprints for untrusted entities
+
+    Slide 14 - JA3 Generation
+      Based on Client Hello exchange
+      Uses
+        TLS version
+        Elliptic curves
+        Cipher identifiers
+        Extensions
+        Signature algorithms
+        Hash algorithms
+      Google GREASE
+        Random extensions
+        Multiple fingerprints
+      Compensation mechanisms exist
+
+    Slide 15 - JA4 Introduction
+      JA4 newer than JA3
+      Different methodology
+      Covered later
+      Other access-control mechanisms exist
+      User action verification possible
+
+    Slide 16 - JA4+ Network Fingerprinting
+      JA4
+        TLS client fingerprinting
+      JA4H
+        HTTP client fingerprinting
+      JA4X
+        X509 certificate fingerprinting
+      JA4TScan
+        TCP scanner fingerprinting
+      JA4D
+        DHCP fingerprinting
+
+    Slide 17 - JA4 Practical Use
+      Fingerprints for
+        Approved systems
+        Regular users
+        Aggressive bots
+      Example Windows 11 JA4D fingerprint
+      Traffic discovery plugins available
+      Monitoring capabilities
+
+    Slide 18 - Amazon CloudFront
+      Proxy server network
+      Content Delivery Network
+      VPC integration
+      Application content routed through VPC
+      Reduced public exposure
+      Access controlled through CloudFront
+
+    Slide 19 - Cloud Tool Vulnerabilities
+      Threats in cloud-connected tools
+      Example Copy-Fail
+      Linux kernel exploit
+      Local privilege escalation
+      Root access acquisition
+
+    Slide 20 - Transition Slide
+      Introduction to vulnerability details
+
+    Slide 21 - Copy-Fail Technical Details
+      Vulnerable component
+        algif_aead interface
+      Cryptographic module
+      AEAD
+        Authenticated Encryption with Associated Data
+      Input-output handling error
+      Page cache access possible
+      Privilege escalation to administrator
+
+    Slide 22 - Mitigation Steps
+      Limit local access
+      Limit physical access
+      Restrict SSH access
+      Use SELinux
+      Use SCC mode
+      Apply kernel updates
+      Revert vulnerable optimization
+
+    Slide 23 - SELinux Overview
+      Security-Enhanced Linux
+      Kernel modifications
+      Security policy enforcement
+      Access control
+      Socket restrictions
+      File system controls
+
+    Slide 24 - SELinux Modes
+      Enforcing
+        Block policy violations
+      Disabled
+        No protection
+      Permissive
+        Allow violations
+        Log all actions
+
+    Slide 25 - Security Context Constraints
+      Container platforms
+      Pod permission control
+      Restrict dangerous resources
+      Protect
+        File system
+        Administrative functions
+      Controlled privileged access
+
+    Slide 26 - Kernel Security Updates
+      CVE-2026-23136
+        libceph DoS
+      CVE-2026-23270
+        act_ct use-after-free
+        DoS or privilege escalation
+      CVE-2026-31402
+        NFSv4 heap overflow
+      CVE-2026-31431
+        algif_aead vulnerability
+
+    Slide 27 - Large Service Security
+      Continuous monitoring
+      Regular kernel compilation
+      Lifecycle management
+      Risk analysis
+      Threat analysis
+      Organized response actions
+
+    Slide 28 - Cloudflare Response Part 1
+      Map blast radius
+      Assess vulnerable versions
+      Determine exposure
+      Validate detections
+      Confirm exploit visibility
+
+    Slide 29 - Cloudflare Response Part 2
+      Proactive threat hunting
+      Review previous logs
+      Runtime mitigation development
+      Safe deployment planning
+      Kernel rollout preparation
+
+    Slide 30 - Cloudflare Response Part 3
+      Continue software updates
+      Kernel deployment
+      Controlled server reboot process
+      Fleet-wide rollout
+
+    Slide 31 - Final Conclusion
+      Threat mitigation through kernel updates
+      Edge data center protection
+      Security maintenance required
+
+

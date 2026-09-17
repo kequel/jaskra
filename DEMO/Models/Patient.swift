@@ -99,6 +99,14 @@ struct AnalysisRecord: Identifiable, Codable, Hashable {
     var cupToDiscRatio: Double
     /// File name of the processed (overlay) image saved in the app's storage.
     var imageFilename: String?
+    /// File name of the standalone disc/cup mask image (demo-only — used by
+    /// the analysis comparison screen's "Maski" mode), saved alongside the
+    /// overlay photo.
+    var maskFilename: String?
+    /// File name of the plain photo with NO overlay (demo-only — used by
+    /// the analysis comparison screen's "Zdjęcia" mode, so that mode shows
+    /// the actual eye, not the annotated result).
+    var rawImageFilename: String?
 
     var risk: RiskLevel { RiskLevel(cdr: cupToDiscRatio) }
 }
