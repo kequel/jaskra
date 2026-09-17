@@ -56,9 +56,9 @@ enum AvatarTint: String, Codable, CaseIterable, Identifiable {
         case .coral:  return .coral
         case .amber:  return .amber
         case .violet: return .violet
-        case .indigo: return .indigo
+        case .indigo: return .indigoAccent
         case .rose:   return .rose
-        case .mint:   return .mint
+        case .mint:   return .mintAccent
         case .sky:    return .sky
         }
     }

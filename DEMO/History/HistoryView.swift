@@ -18,7 +18,7 @@ struct HistoryView: View {
                     icon: "clock.arrow.circlepath",
                     title: "Brak historii",
                     message: "Wykonane analizy pojawią się tutaj — wraz z przypisanym pacjentem.",
-                    tint: .indigo
+                    tint: .indigoAccent
                 )
             } else {
                 ScrollView(showsIndicators: false) {

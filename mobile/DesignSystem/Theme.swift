@@ -82,9 +82,13 @@ extension Color {
     static let coral   = Color(Palette.coral)
     static let amber   = Color(Palette.amber)
     static let violet  = Color(Palette.violet)
-    static let indigo  = Color(Palette.indigo)
+    // Named `indigoAccent`/`mintAccent` (not `indigo`/`mint`) because SwiftUI
+    // itself declares Color.indigo and Color.mint (iOS 15+) — same name,
+    // same type, different module, which the compiler can't disambiguate
+    // ("ambiguous use of 'indigo'") wherever `.indigo`/`.mint` is written.
+    static let indigoAccent = Color(Palette.indigo)
     static let rose    = Color(Palette.rose)
-    static let mint    = Color(Palette.mint)
+    static let mintAccent   = Color(Palette.mint)
     static let sky     = Color(Palette.sky)
 
     static let success = Color(Palette.success)
