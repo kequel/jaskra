@@ -55,6 +55,12 @@ struct DemoComparisonSeed {
 }
 
 enum DemoPatientSeed {
+    /// Bump this whenever the seed data/images below change. PatientStore
+    /// compares it to the last-applied version on launch and auto-resets
+    /// if they differ — so a code update reaches the demo on next launch
+    /// without deleting/reinstalling the app.
+    static let version = 1
+
     static let all: [DemoSeedPatient] = [
     DemoSeedPatient(
         code: "ORIGA-243",

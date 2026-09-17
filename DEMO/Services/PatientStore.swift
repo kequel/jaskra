@@ -16,11 +16,17 @@ final class PatientStore: ObservableObject {
 
     private let patientsFile = "patients.json"
     private let recordsFile = "records.json"
+    private let seedVersionKey = "demoSeedVersion"
 
     init() {
         load()
-        if patients.isEmpty {
+        // Re-seed on an empty store, or whenever DemoPatientSeed.version was
+        // bumped (a code/data update) — so a fix reaches the demo on the
+        // next launch without deleting/reinstalling the app.
+        if patients.isEmpty || UserDefaults.standard.integer(forKey: seedVersionKey) != DemoPatientSeed.version {
+            wipeAllData()
             seedDemoPatients()
+            UserDefaults.standard.set(DemoPatientSeed.version, forKey: seedVersionKey)
         }
     }
 
@@ -199,6 +205,19 @@ final class PatientStore: ObservableObject {
         let url = imagesDir.appendingPathComponent(filename)
         guard let data = try? Data(contentsOf: url) else { return nil }
         return UIImage(data: data)
+    }
+
+    /// Removes every stored patient/record/image, in memory and on disk.
+    private func wipeAllData() {
+        for record in records {
+            deleteImageFile(record.imageFilename)
+            deleteImageFile(record.maskFilename)
+            deleteImageFile(record.rawImageFilename)
+        }
+        patients = []
+        records = []
+        savePatients()
+        saveRecords()
     }
 
     // MARK: - Demo seed data
