@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 // =====================================================================
 //  DEMO PATIENT SEED (demo only) — 3 real fundus photos run through our

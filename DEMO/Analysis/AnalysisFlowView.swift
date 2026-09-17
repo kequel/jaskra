@@ -70,7 +70,7 @@ struct AnalysisFlowView: View {
         .sheet(isPresented: $showAssignSheet) {
             PatientPickerView { picked in
                 if let result {
-                    store.addRecord(for: picked, result: result, image: processedImage, maskImage: maskImage)
+                    store.addRecord(for: picked, result: result, image: processedImage, maskImage: maskImage, rawImage: selectedImage)
                 }
                 savedPatient = picked
                 showAssignSheet = false
@@ -269,7 +269,7 @@ struct AnalysisFlowView: View {
                 let processed = decodeImage(res.imageBase64)
                 let mask = res.maskImageBase64.flatMap(decodeImage)
                 if let patient {
-                    store.addRecord(for: patient, result: res, image: processed, maskImage: mask)
+                    store.addRecord(for: patient, result: res, image: processed, maskImage: mask, rawImage: image)
                 }
                 self.processedImage = processed
                 self.maskImage = mask

@@ -108,6 +108,7 @@ final class PatientStore: ObservableObject {
         for record in records where record.patientId == patient.id {
             deleteImageFile(record.imageFilename)
             deleteImageFile(record.maskFilename)
+            deleteImageFile(record.rawImageFilename)
         }
         records.removeAll { $0.patientId == patient.id }
         patients.removeAll { $0.id == patient.id }
@@ -134,13 +135,15 @@ final class PatientStore: ObservableObject {
     }
 
     /// Persist a completed analysis for a patient, storing the overlay image
-    /// (and, for the demo comparison screen, a standalone mask image) on disk.
+    /// and, for the demo comparison screen, a standalone mask image and the
+    /// plain (no-overlay) photo.
     @discardableResult
     func addRecord(
         for patient: Patient,
         result: GlaucomaResult,
         image: UIImage?,
         maskImage: UIImage? = nil,
+        rawImage: UIImage? = nil,
         date: Date = Date()
     ) -> AnalysisRecord {
         func store(_ image: UIImage?) -> String? {
@@ -157,7 +160,8 @@ final class PatientStore: ObservableObject {
             confidence: result.confidence,
             cupToDiscRatio: result.cupToDiscRatio,
             imageFilename: store(image),
-            maskFilename: store(maskImage)
+            maskFilename: store(maskImage),
+            rawImageFilename: store(rawImage)
         )
         records.append(record)
         saveRecords()
@@ -167,6 +171,7 @@ final class PatientStore: ObservableObject {
     func deleteRecord(_ record: AnalysisRecord) {
         deleteImageFile(record.imageFilename)
         deleteImageFile(record.maskFilename)
+        deleteImageFile(record.rawImageFilename)
         records.removeAll { $0.id == record.id }
         saveRecords()
     }
@@ -179,6 +184,14 @@ final class PatientStore: ObservableObject {
     /// was saved for this record.
     func maskImage(for record: AnalysisRecord) -> UIImage? {
         loadImage(named: record.maskFilename)
+    }
+
+    /// Plain photo with no overlay, for the demo comparison screen's
+    /// "Zdjęcia" mode. Falls back to the overlay image if no raw photo was
+    /// saved for this record (e.g. an older record from before this field
+    /// existed).
+    func rawImage(for record: AnalysisRecord) -> UIImage? {
+        loadImage(named: record.rawImageFilename) ?? loadImage(named: record.imageFilename)
     }
 
     private func loadImage(named filename: String?) -> UIImage? {
@@ -225,6 +238,7 @@ final class PatientStore: ObservableObject {
     private func addSeedRecord(_ seed: DemoSeedPatient, for patient: Patient, date: Date) {
         guard let image = seed.decodedImage else { return }
         let maskImage = seed.decodedMaskImage
+        let rawImage = seed.decodedRawImage
 
         let result = GlaucomaResult(
             hasGlaucoma: seed.hasGlaucoma,
@@ -233,7 +247,7 @@ final class PatientStore: ObservableObject {
             imageBase64: seed.cleanImageBase64,
             maskImageBase64: seed.cleanMaskBase64
         )
-        addRecord(for: patient, result: result, image: image, maskImage: maskImage, date: date)
+        addRecord(for: patient, result: result, image: image, maskImage: maskImage, rawImage: rawImage, date: date)
     }
 
     // MARK: - Private

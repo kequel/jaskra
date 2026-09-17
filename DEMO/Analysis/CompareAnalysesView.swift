@@ -34,8 +34,8 @@ struct CompareAnalysesView: View {
 
     private func displayImage(for record: AnalysisRecord) -> UIImage? {
         switch mode {
-        case .photos: return store.image(for: record)
-        case .masks:  return store.maskImage(for: record) ?? store.image(for: record)
+        case .photos: return store.rawImage(for: record)
+        case .masks:  return store.maskImage(for: record)
         }
     }
 
